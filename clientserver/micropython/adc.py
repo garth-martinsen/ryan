@@ -1,8 +1,7 @@
 # file: adc.py  class to gather a2d samples for a circuit, process them and prepare report for server.
 
 
-from adc_cfg import names, i2c, ads,  Measurements, Stats, SvrReport
-from adc_cfg import  measurements, allPins, gatePins, CALIBRATE
+from adc_cfg import names, i2c, ads,  Measurements, Stats, SvrReport, measurements, allPins, gatePins
 from adc_cfg import adc_sample_rate, _BUFFERSIZE
 from machine import Pin, RTC, SoftI2C, PWM, Timer
 import ads1x15
@@ -14,7 +13,7 @@ import json
 
 datapath = '/Users/garth/Programming/python3/python-basic-socket/data'
 
-class adc:
+class ADC:
     def __init__(self):
         self.names=names
         self.channel=-99  #Must be one of [0,1,2] when running
@@ -52,9 +51,10 @@ class adc:
         return f'{dt[0]}-{dt[1]}-{dt[2]}  {dt[4]}:{dt[5]}:{dt[6]}.{dt[7]}'
 
     def calibrate(self, chan, purpose, vin):
-        self.vin = vin
-        print(f"Chan: {chan} Vin: {vin} purpose: { purpose}")
-        self.measure(chan, purpose)
+        purpose = "calibrate"
+        self.vin = float(input("Enter value of vin  "))
+        print(f"Called adc.calibrate(), Chan: {chan} Vin: {vin} purpose: { purpose}")
+        return self.measure(chan, purpose)
  
     def measure(self, ch, purpose):
             ''' Prepares circuits[ch] to turn on current and sample voltages at the sample point.
@@ -137,29 +137,32 @@ class adc:
         vm= stats.vm_mean
         vin = self.vin
         vb = self.lookup_vb( chan, vm)
+        error = vb - vin
         cfg_id=self.cfg_ids[chan]
         # report depends on the purpose: measure or calibrate
         if intent == 'measure':
             #purpose 101 means report measurement to server.
-            obj={"purpose" : 101, "cfg_id" : cfg_id, "datetime" : time(),
-                     "a2d_mean" : stats.a2d_mean, "a2d_sd" : stats.sd,
-                     "vm" : vm, "vb" : vb, "keep" : keep,
+            obj={"purpose" : 101, "cfg_id" : cfg_id, "timestamp" : self.datetimestamp(),
+                     "a2d" : stats.a2d_mean, "a2d_sd" : stats.sd,
+                     "vm" : vm, "vb" : vb, "vin": vin, "error" : error, "keep" : keep,
                      "sample_period" : stats.sample_period,
                      "store_time" : stats.store_time, "gate_time" : stats.gate_time, }
             #print("obj: ", obj)
-        elif intent == "calibrate":
-            datafile = f"lut{chan}.csv"
-            print("datafile: ", datafile)
-#             with open(datafile, "a") as f:
-#                 print(f"{vm}  : { self.vin }")
-#                 f.write(f"\r{vm}  : { self.vin },")
-
-#          201 means report calibration to server. difference from measurement is vin
-            obj={"purpose" : 201, "cfg_id" : cfg_id, "datetime" : time(),
-                     "a2d_mean" : stats.a2d_mean, "a2d_sd" : stats.sd,
-                     "vm" : vm, "vb" : vb, "vin" : self.vin, "keep" : keep,
-                     "sample_period" : stats.sample_period,
-                     "store_time" : stats.store_time, "gate_time" : stats.gate_time, }
+        elif intent == 'calibrate':
+            '''
+            following writes lut values to file. Not used for client-socket 
+             datafile = f"lut{chan}.csv"
+             print("datafile: ", datafile)
+             with open(datafile, "a") as f:
+                 print(f"{vm}  : { self.vin }")
+                 f.write(f"\r{vm}  : { self.vin },")
+'''
+            # 201 means report calibration to server
+            obj = {"purpose": 201, "cfg_id" : cfg_id, "timestamp" : self.datetimestamp(), "type": 'c',"vin": self.vin,
+                       "a2d" : stats.a2d_mean, "a2d_sd" : stats.sd,
+                       "vm" : vm, "vb" : vb, "vin" : vin, "error" : error, "keep" : keep,
+                       "sample_period" : stats.sample_period,
+                       "store_time" : stats.store_time, "gate_time" : stats.gate_time }
         return obj
         
     def reject_outliers(self, chan):
@@ -228,7 +231,6 @@ class adc:
         '''Returns the estimate of vb, channel voltage given measured voltage, vm'''
         #TODO: DONE: put a guard in to prevent asking for a lookup if vm is out of bounds. 7/26/25
         #TODO: Re-calibrate lut0 
-        print(f"Looking up vb given vm: {vm} on channel: {chan}")
         alutkeys = self.luts[chan].keys()
         lowest = min(alutkeys)
         highest = max(alutkeys)
@@ -241,11 +243,14 @@ class adc:
             (loval, v, hival ) = self.bracket_vm(chan, vm )
             # print(f" low: {loval} , vm: {v} , high: {hival}")
             vb = self.interpolate( chan, loval, v, hival)
-        return vb
+            print(f"Looking up vb given vm: {vm} on channel: {chan} gives: {vb}")
+        # subtracting 0.0025355 causes error mean to go to zero on channel 0
+        # TODO: investigate LUT0 values to see if db errors go away when updated.
+        return vb 
        
         
         
-'''    # following will be moved and adapted to db_server which will handle asynchronous actions
+'''    # following will be moved to db_server which will handle asynchronous actions
     async def schedule_tasks(tasks, wait_period):
         self.tasks= tasks
         self.wait_period = wait_period  # Schedule for next measurement
