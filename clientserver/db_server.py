@@ -3,7 +3,7 @@ import threading
 from data_controller import DataController
 import json
 from collections import namedtuple
-from database_interface import BMS, CALIBRATE
+from database_interface import BMS
 import time
 
 ''' This server is implemented in python3. It can receive requests from clients running in either
@@ -73,21 +73,22 @@ stepdict[2] =[9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.0, 10.1, 10.2
 def timestamp(self):
     '''Returns local time as string, eg: YYYY-mm-DD HH:MM:SS'''
     dt = time.localtime()
-    return f'{dt[0]}-{dt[1]}-{dt[2]}  {dt[4]}:{dt[5]}:{dt[6]}.{dt[7]}'
+    return f'{dt[0]}-{dt[1]}-{dt[2]} {dt[3]}:{dt[4]}:{dt[5]}'
+#currently,  The vin is overloaded with 
+#  user input in adc.calibrate(...).  self.vin = float(input("Enter value of vin  "))
 
-def calibrate(chan, conn):
-    ''' This is a test method in db_server to see if we can calibrate all vins in a channel'''
-    steps = stepdict[chan]
-    for vin in steps:
-        obj= {"purpose":200, "chan" : ch, "vin": vin}
-        payload= json.dumps(obj)
-        time.sleep(2)
-      #  input(f" Press return to send msg to server for chan: {chan}, vin: {vin}")
-        conn.send(payload.encode(FORMAT))
-        print( "sending to client: ", payload)
+
+# def calibrate(chan, vin, conn):
+#     ''' This is a test method in db_server to see if we can calibrate all vins in a channel'''
+#     steps = stepdict[chan]
+#     for vin in steps:
+#         obj= {"purpose":200, "chan" : ch, "vin": vin}
+#         payload= json.dumps(obj)
+#         time.sleep(2)
+#       #  input(f" Press return to send msg to server for chan: {chan}, vin: {vin}")
+#         conn.send(payload.encode(FORMAT))
+#         print( "sending to client: ", payload)
         
-        
-    
 def handle_client(conn: socket, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
     client_initiated_msgs.clear()
@@ -129,55 +130,34 @@ def handle_client(conn: socket, addr):
                 # rqsts from someone will be delegated to client to respond
                 jsonx = json.loads(msg)
                 intent = jsonx['purpose']
-        
                 if intent == '100': #someone requested a measure
-                    #chan= jsonx['chan']
-                    #obj={f"purpose" : '100' , "chan":{chan} }
-                    #payload=json.dumps(jsonx)
-                    conn.send(msg)
-                elif intent == '200': # someone requested a calibration
-                    #chan = jsonx['chan']
-                    #vin = jsonx['vin']
-                    #obj={f"purpose" : '200' , "chan":{chan}, "vin" :{vin}}
-                    #payload=json.dumps(jsonx)
-                    #just send the msg to the client for its response.
                     if client_can_respond:
-                        calibrate(0, conn)
+                        conn.send(jsonx)
+                elif intent == '200': # someone requested a calibration
+                    if client_can_respond:
+                        conn.send(jsonx)
                 elif intent == '101':
                     print("server received measurement response...")
                     save_measurement(jsonx)
                 elif intent == '201':
                     print("201:server received calibration response...")
                     save_calibration(jsonx)
-
+        # temporary calibrate msg to client
+#         obj={"purpose": '200', "chan" : 0, "vin" : 3.00 }  # vin will be input by user replacing this.
+#         payload = json.dumps(obj)
+#         conn.send(payload.encode(FORMAT))
+        
         print(f"[MESSAGE RECEIVED AT SERVER:][{addr}] {msg} ")
     conn.close()
  
-
-# def create_cols_vals(self, jsonx):
-#     '''Removes purpose, Returns two lists with column names (cols) and values (vals).'''
-#     # db table BMS has no column 'purpose' . ' type'  is used to reflect calibration instead. remove 'purpose' by pop
-#     jsonx.pop('purpose')
-#     cols=[]
-#     vals=[]
-#     for k,v in jsonx.items():
-#         cols.append(k)
-#         vals.append(v)
-#     return (cols, vals)
-
 def save_measurement(self, json1):
-    ''' request datacontroller to save  a measurement.'''
-    json1['type']='m'
-    json1['timestamp'] = self.timestamp()
-    (cols, vals)=self.create_cols_vals(json1)
+    ''' request datacontroller to save  a measurement. Timestamp and type are handled in dbi'''
     print(f"Called dbsvr.save_measurement() with msg: {json1}")
     dc.save_measurement(json1)
 
 def save_calibration(json1):
     ''' Sets type to calibration ('c'), creates lists for column names (cols) and values (vals).
-       Requests datacontroller to save_calibration.'''
-    json1['type'] = 'c'
-    json1['timestamp'] = self.timestamp()
+       Requests datacontroller to save_calibration. Timestamp and type are handled in dbi'''
     print(f"Called dbsvr.save_calibration() with msg: {json1}")
     dc.save_calibration(json1)
 
@@ -193,13 +173,3 @@ def start():
 
 print("[STARTING] Server is starting ...")
 start()
-
-
-#  handled under else:
-#             elif msg == '200' "
-#                 jsonx = json.loads(msg) # this cmd will come from asyncio calls but for now just try it:
-#                 intent = jsonx['purpose']
-#                 obj={"purpose" : '200' , "chan": 0, "vin" :3.10}
-#                 payload=json.dumps(obj)
-#                 conn.send(payload.encode(FORMAT))
-#          
