@@ -15,10 +15,8 @@ import ast
 import random
 import json
 from data_controller_config import Lut_Limits, lsb, circuits
-from database_interface import DatabaseInterface, BMS, CALIBRATE
-
-# print("owner: ", owner, "app_id: ", app_id, "version_id:", version_id)
-
+from database_interface import DatabaseInterface, BMS
+from collections import OrderedDict
 
 class DataController:
     ''' Provides access to database and flet view (TBD). Constructor requires a
@@ -98,7 +96,7 @@ class DataController:
     def sort_lut(self, channel):
         """Returns None. Sorts the lookup table by the keys in memory"""
         lut = self.luts[channel]
-        alut = dict(sorted(lut.items()))
+        alut = OrderedDict(sorted(lut.items()))
         self.luts[channel] = alut
 
     # helper method to build the insert tuples: Columns, values
@@ -164,50 +162,9 @@ class DataController:
         # add the correct key and value . This replaces the old item but at end of dict
         alut[new_vm] = vb
         # sort newlut to go from least to greatest vb, by creating a newlut, then store it where old lut was.
-        newlut = dict(sorted(alut.items()))
+        newlut = OrderedDict(sorted(alut.items()))
         self.luts[channel] = newlut
         self._limit_lut(channel)
-
-    # TODO 2: Continue to implement with dbi. Too much db in this class.
-
-    # inserts new record in table CONFIG with updated lut for channel_id and versions_id, prompt for version_desc
-    #     def store_lut( self, channel):
-    #         '''Stores a new record into CONFIG table with new LUT in two steps:
-    #         1. insert a record with same values for each field except fields:
-    #         channel, version_id, version_description, timestamp, and the modified column
-    #         2. update that record with the new value for LUT
-    #         '''
-    #         print("DataController says: I will store a valid json string of in-memory lut to db config table")
-    #         print(" with new version and version description")
-    #         new_version =  self.cfg[channel].version + 1
-    #         version_desc = input('Enter a reason for this new version:')
-    #         #jsonize the LUT
-    #         lut_json= json.dumps(self.luts[channel])
-    #         self.dbi.store_lut(lut_json, channel, new_version, version_desc)
-
-    def calibrate(self, vin, channel, reps, tolerance):
-        '''Requests best vm when battery is at vb voltage. Used to build dependable LUT for circuit;
-        vin is battery voltage driving the voltage divider, channel is one of: [C42, C84, C126] eg: [0,1,2]
-        reps is number of samples. tolerance is # of sd allowed  from the mean, used to reject outliers.
-        Returns a mock 7-tuple, "randomized row",  given the input voltage.
-        This function will be replaced
-        In the real world  where 4 of the 7-tuple come from
-        DataController.calibrate(vin) function and where calibrate can be one of [True,False]   '''
-     
-     #KLUGE--KLUGE--KLUGE--KLUGE--KLUGE--KLUGE--KLUGE--KLUGE
-        self.row_id += 1
-        vm0 = self.reverse_lookup(vin, channel) 
-        vm= vm0 + float(random.randint(-5,5)/10 *122e-6)
-        sd= random.randint(-5,5)*122e-6
-        vb= vin/vm0 * vm
-        err= vb-vin
-        if abs(err) < self.limit :   #see line 33
-            calibrated = True
-        else:
-            calibrated = False
-        row_tuple = (self.row_id, vin, vm, sd, vb, err, calibrated)
-        #print("row_tuple: ", row_tuple)
-        return row_tuple
     
     def measure(self, circuit):
         """Initiates asyncio task to sample, process and return vm, sd"""
