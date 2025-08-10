@@ -7,7 +7,7 @@ import time
 #import json
 from database_interface_config import  db_path, Config,  Short_Record
 from database_interface_config import CFG_Columns,   BMS_Columns
-from database_interface_config import  BMS, CALIBRATE
+from database_interface_config import  BMS
 
 class DatabaseInterface:
     def __init__(self):
@@ -31,13 +31,8 @@ class DatabaseInterface:
         for row in cu.execute(select_str) :
             #print("row: ", row)
             calibs.append(row)
-        return cfg
+        return calibs
 
-
-#     def disconnect_from_db(self):
-#         #self.cu.close()
-#         self.cx.close()
-    
     def _short_namedtuple_factory(self, cursor, row):
         ''' Returns row as a Short_Record:
            Short_Record = namedtuple("Short_Record",("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))
@@ -113,10 +108,10 @@ class DatabaseInterface:
     
     def save_measurement(self, msg):
         ''' Use the values in msg to populate values in insert statement.'''
-         # bms is namedtuple for Battery Management System (bms)
-         # print("Called dbi.save_measurement(). Saving bms to database...", bms)
+         # msg is a dict for Battery Management System (bms) . it is from the client
+         # print("Called dbi.save_measurement(). Saving msg to database...", bms)
         #TODO:Make sure that transaction is not needed in BMS save.
-        # create correct insert_str: NULL, stringify keep, end with semi-colon.
+        # create correct insert_str:  stringify keep, end with semicolon, ;.
         msg['type'] ='m'
         ts=self.timestamp()
         msg["timestamp"]=ts
