@@ -65,7 +65,7 @@ def send(msg):
     client.send(send_length)
     client.send(message)
 
-obj={"purpose" : '0', "greet": "Hello, I am the Scheduler", "client_id": 'scheduler_client'}
+obj={"purpose" : '0', "greet": "Hello, I am the Scheduler", "client_id" : "scheduler_client"}
 msg= json.dumps(obj)
 send(msg)
 
@@ -73,27 +73,18 @@ send(msg)
 #receive msg from server========blocking=============
 msg= client.recv(1012)
 print("received msg: ", msg)
-jsonx = json.loads(msg)
-purpose = jsonx["purpose"]
-
-
-
-''' server if...  delete after setting up...
+'''
 jsonx= json.loads(msg.decode(FORMAT))
 purpose = jsonx["purpose"]
-if purpose == '0':
-    greeting = jsonx['greet']
-    client_id= jsonx["client_id"]
-    clientdict[client_id] =conn
-    print(f" Greeting: {greeting}  Client_id: {client_id}")
+chan = jsonx['chan']
+
+if purpose == '50':
+    print("scheduler.adc_client_ready=True")
 
 
 elif purpose == '100'
     msg={"purpose": '100', "chan":  chan}
-    conn = clientdict("adc_client"]
-    conn.send(str(msg))
-
-
+    send(str(msg))
 elif purpose == '200'
     msg={"purpose": '100', "chan":  chan}
     send(str(msg))
