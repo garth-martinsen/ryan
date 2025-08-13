@@ -4,7 +4,7 @@ from adc import ADC
 from collections import OrderedDict
 import time
 from machine import RTC
-
+#TODO: 8/11/25: Broken msg.purpose in adc_client.py. fix it.
 adc = ADC()  #instantiate the adc. it will get cfg_ids and luts later from db_server requests.
 rqsts_to_server=[]
 rqsts_from_server =[]
@@ -13,7 +13,7 @@ respns_by_client=[]
 
 purpose=' '
 DISCONNECT_MESSAGE = '!DISCONNECT'
-config_requests=['10', '20', '30', '40']
+config_requests=[  '10', '20', '30', '40']
 ranges_lut = {0: (30,46), 1: (60,91), 2: (90, 136)}  # used in step_calibrate
 HEADER = 64
 PORT = 5050
@@ -55,14 +55,16 @@ def send(msg):
     print("received msg: ", msg)
     jsonx= json.loads(msg.decode(FORMAT))
     purpose = jsonx["purpose"]
-    if purpose == '10':
+    if purpose == "1":
+        configure()    
+    if purpose == '11':
         adc.cfg_ids = tuple(jsonx["cfg_ids"])
         respns_from_server.append(f"{purpose}")
-    elif purpose in ['20','30','40'] :
+    elif purpose in ['21','31','41'] :
         channel = jsonx['chan']
         adc.luts[channel]= convert_to_dict(jsonx['lut'])
     elif purpose == '100' : #measure
-        #TODO: Done: Implement  response to svr request to call adc.measure(channel) and return report to svr.
+        #TODO: Done: Implement  response(101) to svr request to call adc.measure(channel) and return report to svr.
         chan = jsonx['chan']
         print(f"Server CMD: purpose: {purpose} channel: {chan}  is requested by server...")
         time.sleep(2)
@@ -80,9 +82,9 @@ def send(msg):
        #TODO: Find out why adc.calibrate returns results=null in adc_client(line 87)  client.recv(1012) (blocking )
        print("line 88 client.recv() results: ", results)
        rqsts_from_server.append(f"calibrate {chan} for {vin} ")
-       respns_by_client.append("Sent Client response(201) to Server rqst(200: chan:{chan}. vin: 3.3")
+       respns_by_client.append("Sent Client response(201) to Server chan:{chan}. vin: {vin}")
        payload = json.dumps(results)
-       print("payload: ", payload)
+       print(f"payload for : {purpose}  {payload}")
        send(payload)
 
 def convert_to_dict(lut):
@@ -119,24 +121,31 @@ def isconfigured():
     return cfgOK and lut0OK and lut1OK and lut2OK
            
 def configure():
-    for msg in config_requests:
+    for num in config_requests:
+        obj={"purpose": str(num)}
+        msg = json.dumps(obj)
         send(msg)
         rqsts_to_server.append(msg)
     if isconfigured():
-        send('50')
-        rqsts_to_server.append('50')
-        
+        obj={"purpose": '50'}
+        msg=json.dumps(obj)
+        send(msg)
+        rqsts_to_server.append(msg)      
         print("The adc client is totally configured and ready to respond to server cmds.")
         print("========Server CMDS=========")
         
-        
-def do_something():
-    #send calibrate msg to server
-    if isconfigured():
-        chan=0
-        send(json.dumps(adc.calibrate(chan, 'calibrate', 3.0)))
-        
+# temp method. Delete when scheduler is working.        
+# def do_something():
+#     #send calibrate msg to server
+#     if isconfigured():
+#         chan=0
+#         send(json.dumps(adc.calibrate(chan, 'calibrate', 3.0)))
+#         
     #send(DISCONNECT_MESSAGE)
+obj={"purpose": '0', "greet": "Hello, I am adc_client", "client_id": "adc_client"}
+msg= json.dumps(obj)
+send(msg)
+ 
 configure()
 
 log()

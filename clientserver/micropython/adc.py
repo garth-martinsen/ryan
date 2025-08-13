@@ -163,6 +163,7 @@ class ADC:
                        "vm" : vm, "vb" : vb, "vin" : vin, "error" : error, "keep" : keep,
                        "sample_period" : stats.sample_period,
                        "store_time" : stats.store_time, "gate_time" : stats.gate_time }
+            print(f" reporting back to server: {obj}")
         return obj
         
     def reject_outliers(self, chan):
