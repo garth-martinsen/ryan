@@ -1,3 +1,5 @@
 *.un~
 *~
 */.DS_Store
+rt_db
+data/rt_db
