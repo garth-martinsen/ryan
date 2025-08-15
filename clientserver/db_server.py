@@ -91,11 +91,13 @@ def timestamp(self):
 #       #  input(f" Press return to send msg to server for chan: {chan}, vin: {vin}")
 #         conn.send(payload.encode(FORMAT))
 #         print( "sending to client: ", payload)
-        
+#global variables
+client_can_respond =False
+
 def handle_adc_client(conn: socket, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
     client_initiated_msgs.clear()
-    client_can_respond =False
+
     connected = True
     while connected:
         header = conn.recv(HEADER).decode(FORMAT)  # blocking line
@@ -145,14 +147,22 @@ def handle_adc_client(conn: socket, addr):
                 client_can_respond=True
                 print(f" Client can now respond to Server Cmds:  {client_can_respond} ")
                 #print(f" purpose: {purpose}  clientdict: {clientdict} ")
+            elif purpose == '100':
+                '''server received measurement request.
+                Passes it to adc_client  to have adc make a measurement .'''
+                conn.send(jsonx.encode(FORMAT))  
+            elif purpose == '200':
+                print("200 :server received calibration request..")
+                conn.send(jsonx.encode(FORMAT)) 
             elif purpose == '101':
                 '''server received measurement response.
                 Tells DataController to save it to db. Notify scheduler.'''
-                dc.save_measurement(jsonx)      
+                dc.save_measurement(jsonx)
+                dc.update_gui(jsonx)
             elif purpose == '201':
                 print("201:server received calibration response...")
                 dc.save_calibration(jsonx)
-
+                dc.update_gui(jsonx)
 def handle_scheduler_client(conn: socket, addr):
     connected = True
     while connected:
@@ -169,7 +179,7 @@ def handle_scheduler_client(conn: socket, addr):
             purpose = jsonx['purpose']
             if purpose == '100': #someone requested an adc measure
                 if client_can_respond:
-                    handler_adc_client(msg)
+                    handle_adc_client(msg)
                     #conn.send(jsonx)
             elif purpose == '200': # someone requested an adc calibration
                 if client_can_respond:
