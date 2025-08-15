@@ -8,7 +8,9 @@ import time
 class myscheduler:
     '''This scheduler is used by the FLET GUI to send msgs to the db_server, which ,in turn, forwards
        the msgs to the adc_client to make measurments and calibrations. To set up repeating measurements
-       , the GUI must set wait_period and reps first. For a channel calibration, TBD...'''
+       , the GUI must set wait_period and reps first. For a channel calibration, the Gui must also set the
+       wait_period, the time between the different steps in vin (eg: 3 seconds) to allow for the
+       power supply voltage to be set and accurately measured (vin).  '''
     def __init__(self):
         self.wait_period=0     # user sets it to number of secs until repeat.
         self.reps = -1              # means forever unless user sets it to another number.
@@ -16,16 +18,20 @@ class myscheduler:
         self.requests=[{},{},{}]
      #TODO: Implement Steppiing Calibration
     #TODO: Fold this functionality into the scheduler_client, which will send/receive msgs from db_server.
+
     def timestamp(self):
         '''Returns local time as string, eg: YYYY-mm-DD HH:MM:SS'''
         dt = time.localtime()
         return f'{dt[0]}-{dt[1]}-{dt[2]} {dt[3]}:{dt[4]}:{dt[5]}'
 
-    def set_wait_period_and_reps(self, secs, reps):
+    def set_wait_period(self, secs):
         '''process will repeat after secs'''
         self.wait_period =secs
-        self.reps=reps
- 
+       
+    def set_reps(self, num):
+        '''how many repetions of measurement sequence'''
+        self.reps=num
+         
     async def request_measure(self, chan):
         '''single-shot measurement on a channel. it is complete when self.responses boolean is set'''
         self.responses[chan]=False
@@ -66,7 +72,7 @@ class myscheduler:
             
     async def request_periodic_measure(self):
         '''Repeating sequence of tasks: m(0), m(1), m(2), wait. where wait is in seconds and set by user.
-        Measure all three channels in order, then sleep for waitTime , then repeat for ever...
+        Measure all three channels in order, then sleep for waitTime , then repeat for self.reps.
         A measurement is complete when the server responds with the result.'''
 #         self.requests.clear()
 #         self.responses.clear()
@@ -80,10 +86,12 @@ class myscheduler:
         print(f" All Done with {self.reps} sets. Waiting {self.wait_period} seconds between sets!")
         
     async def request_stepping_calibration(self, chan):
+        ''' Uses async to step thru all of the vin voltages in a channel. User must set wait_period
+        as the number of seconds it takes him to adjust his power supply for the next vin. eg: 3 seconds'''
         steps = steps_per_channel[chan]
         for vin in steps:
             print(vin)
             await self.request_calibrate(chan, vin)
             await self.wait_for_next_set()
         print(f" All Done calibrating channel {chan} in {steps} steps. \
-                Set wait_period {self.wait_period} higher if you need more time to set power supply")   
+                Set wait_period now at: {self.wait_period} higher if you need more time to set power supply")   
