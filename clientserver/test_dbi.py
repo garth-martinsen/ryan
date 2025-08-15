@@ -12,8 +12,8 @@ class test_DBI:
         ts= dbi.timestamp()
         msg['timestamp']=ts
         cols, vals = dbi.create_cols_vals(msg)
-        print(f" cols: {cols}  vals: {vals}")
-        assert(len(cols) == len(vals), "Cols and Vals must have same length")
+        #print(f" cols: {cols}  vals: {vals}")
+        assert len(cols) == len(vals), "Cols and Vals must have same length"
         
     def test_timestamp(self):
         print("===================")
@@ -22,7 +22,7 @@ class test_DBI:
         print(f"timestamp: {ts}")
         records = dbi.list_BMS()
         last=records[-1]
-        assert(last["timestamp"] == ts, " Timestamp is incorrect!")
+        assert last[3] == ts, " Timestamp is incorrect!" 
         
     def test_save_calibration(self, msg):
         print("===================")
@@ -35,11 +35,13 @@ class test_DBI:
         dbi.save_calibration(msg)
         #read from db
         records = dbi.list_BMS()
-        last_record = Record: {records[-1]
-        print(f" Last Record : {last_record}")
-        assert(last_record["type"] == 'c' )
-        assert(last_record["vm"]==msg["vm"], "Vm is different from input to saved record")
-        
+        print(f" len(records) : {len(records)}")
+        last_record = records[-1]
+        #print(f" Last Record : {last_record}")
+        assert last_record[2] == 'c' , f" Wrong type: {last_record[2]} is not 'c'"
+        assert last_record[6]==msg["vm"], "Vm is different from input to saved record"
+        assert ts == last_record[3] , f" Timestamp of record: {last_record[2]} differs from ts {ts}"
+
     def test_save_measure(self,msg):
         print("===================")
         print("testing save_measure()")
@@ -51,12 +53,18 @@ class test_DBI:
         dbi.save_measurement(msg)
         # read from db
         records = dbi.list_BMS()
-        last_record = Record: {records[-1]
-        print(f" Last Record : {last_record}")
-        assert(last_record["type"] == 'm' )
-        assert(last_record["vm"]==msg["vm"], "Vm is different from input to saved record")
-        
+        last_record = records[-1]
+        # print(f" Last Record : {last_record}")
+        assert last_record[2] == 'm' , f" Type: {last_record[2]} should be 'm'"
+        assert last_record[6]==msg["vm"], f" Vm: {last_record[6]} is not {msg['vm']}"
 
+    def test_list_calibrations(self,msg):
+        print("===================")
+        print("testing list_calibrations()")
+        records = dbi.list_calibrations()
+        last_record = records[-1]
+        #print(f" records[-1]: {records[-1]}")
+        assert last_record[2] == 'c' , f" Type: {last_record[2]} is not 'c'"
  
 testdbi=test_DBI()
 
