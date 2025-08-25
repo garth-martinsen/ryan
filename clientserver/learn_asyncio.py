@@ -12,8 +12,8 @@ class myscheduler:
        wait_period, the time between the different steps in vin (eg: 3 seconds) to allow for the
        power supply voltage to be set and accurately measured (vin).  '''
     def __init__(self):
-        self.wait_period=0     # user sets it to number of secs until repeat.
-        self.reps = -1              # means forever unless user sets it to another number.
+        self.wait_period=0     # user sets it to number of secs to wait before repeating.
+        self.reps = -1             # user sets it to a finite number, may be a very large number.
         self.responses = [{},{},{}]
         self.requests=[{},{},{}]
      #TODO: Implement Steppiing Calibration
@@ -25,11 +25,11 @@ class myscheduler:
         return f'{dt[0]}-{dt[1]}-{dt[2]} {dt[3]}:{dt[4]}:{dt[5]}'
 
     def set_wait_period(self, secs):
-        '''process will repeat after secs'''
+        '''process will repeat after secs. If step_calibrating, time before next vin...''
         self.wait_period =secs
        
     def set_reps(self, num):
-        '''how many repetions of measurement sequence'''
+        '''how many repetions of measurement sequence. If step_calibrating, not used...'''
         self.reps=num
          
     async def request_measure(self, chan):
@@ -94,4 +94,4 @@ class myscheduler:
             await self.request_calibrate(chan, vin)
             await self.wait_for_next_set()
         print(f" All Done calibrating channel {chan} in {steps} steps. \
-                Set wait_period now at: {self.wait_period} higher if you need more time to set power supply")   
+                Set wait_period higher if you need more time to set power supply. It is now at:  {self.wait_period} ")   
