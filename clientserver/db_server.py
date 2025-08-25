@@ -1,209 +1,171 @@
-import socket
-import threading
-from data_controller import DataController
-import json
-from collections import namedtuple
-from database_interface import BMS
-import time
+# file db_server.py  from simplifed version: /Users/garth/DIST/clientserver/ryan/learn/myserver2.py  8/23/2025
+# copied from: https://github.com/juliogema/python-basic-socket/blob/main/server.py
+# to clear locked ip address:  lsof +c 0 -i:5050 -n  Then kill pid that shows up.
 
-''' This server is implemented in python3. It can receive requests from clients running in either
-python3 or micropython. It is multi-threaded and can handle many clients.
-In messages to/from clients, the payload will be in json. The first json field
-will be "purpose" so that the server/client can branch to perform processing
-to handle the msg.'''
+import threading
+import socket
+import json
+from data_controller import DataController
 
 HEADER = 64  # bit
 PORT = 5050
-SERVER = '192.168.254.19'   #the host computer running in python3
-# SERVER = socket.gethostbyname(socket.gethostname())
+SERVER = '192.168.254.19'  #change according to the ipaddress of your host.
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECTED"
-#adc_client requests/notifications to server...
-CFG_IDS                = '10'
-LUT0                       = '20'
-LUT1                       = '30'
-LUT2                       = '40'
-CLIENT_READY    = '50'  #sent when totally configured...
-# server_msgs or commands...
-MEASURE                    = '100'
-CONFIGURE                = '200'
-# client responses to server commands...
-MEASURE_RSPNS     = '101'
-CALIBRATE_RSPNS   = '201'
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(ADDR)
 
-#load configuration from db . You need to furnish your ids in the place of (1,2,3) .
-dc=DataController((1,2,3))  #put your ids tuple here.
+#global vars which change upon the receipt of each client msg.
+msg=''
+conn=None
+addr=None
+
+class  db_server:
+    def __init__(self): 
+        self.dc = DataController((1,2,3))  # initialize with your project's cfg_ids here instead of (1,2,3)
+        self.clients_READY              = dict()
+        self.sockets_by_addr            = dict()
+        self.client_names_by_addr       = dict()
+        self.rsps_per_rqst              = dict()
+        self.load_rsps()                # a dict
+
+    def load_actions(self):
+        '''As server receives msgs, the purpose is extracted and actions are performed. this dict returns the response msg'''
+        # 5 < purpose <99 are returned to sender for both clients  100 <= purpose <= 500 : save to db and forward to the other client
+        #self.rsps_per_rqst = dict()
+        self.rsps_per_rqst[0] =   {"purpose":1, "greet": "Hello. Glad to have you connected."} 
+        self.rsps_per_rqst[10] = {"purpose":11, "cfg_ids": tuple(self.dc.cfg_ids)}
+        self.rsps_per_rqst[20] = {"purpose":21, "chan":0, "lut": self.dc.luts[0]}
+        self.rsps_per_rqst[30] = {"purpose":31, "chan":1, "lut":  self.dc.luts[1]}
+        self.rsps_per_rqst[40] = {"purpose":41, "chan":2, "lut":  self.dc.luts[2]}
+        self.rsps_per_rqst[50] = {"purpose":51, "status": self.clients_READY  }
+        self.rsps_per_rqst[100]= {"purpose":100,  "status": "forwarded to adc_client" }            # gui_client -> dbs, then fwd to :  adc_client
+        self.rsps_per_rqst[200]= {"purpose":200, "status": "forwarded to adc_client" }             # gui_client -> dbs, then fwd to :  adc_client
+        self.rsps_per_rqst[101]= {"purpose":101, "status": "saved and forwarded to adc_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
+        self.rsps_per_rqst[201]= {"purpose":201, "status": "saved and forwarded to adc_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
+
+    def acknowlege_client(self):
+         '''Responding to 0:connect and introduce. Create and send back a welcome msg. '''
+         global msg, conn, addr
+         obj = {"purpose": 1, "load": "Hello. Welcome aboard!."}
+         msg=json.dumps(obj)
+         print(f"msg: {msg}")
+         conn.send(msg)
+    
+    def send_lut(self, purpose, chan, lut):
+        global msg, conn, addr
+        obj= f'purpose": {purpose}, "chan":chan, "lut": lut'
+        msg=json.dumps(obj)
+        print(f"msg: {msg}")
+        conn.send(msg)
+        
+    def the_other_socket(self, conn, addr):
+        ''' (conn, addr) is from active client. Returns the other client_name and other_socket'''
+        if len(sockets_by_addr) < 2:  #only one socket in dict
+            other_client = other_socket = None
+            print(f"Only one client has connected so other_client: {other_client}  and other_socket: {other_socket}")
+        else:
+            sockets= set (sockets_by_addr.keys())
+            other = sockets.difference({addr}).pop()  # other is an addr (string)
+            other_client_name  = client_names_by_addr[other]  #other_client is name of client, a string
+            other_socket = sockets_by_addr[other]       # other_socket is a socket
+            print(f" other_client : {other_client} ")
+            print(*f" other_socket: {other_socket} ")
+        return (other_client_name, other_socket)
+    
+    def update_READY(self):
+        global msg, addr, conn
+        if addr:
+            client_name= self.client_names_by_addr[addr]
+            socket = self.sockets_by_addr[addr]
+                                        
+    def forward_to_adc_client(self, purpose):
+        ''' msg is from gui_client. Forward msg to adc_client'''
+        global msg, addr, conn
+        if msg and conn and addr:
+            adc_client, adc_socket = the_other_socket(conn, addr)
+            cmd = json.dumps(msg)
+            print(f" sending {cmd}  to {adc_client} on socket: {adc_socket}")
+            adc_socket.send(cmd)
+                
+    def save_and_forward_to_gui_client(self, purpose):
+        '''Msg sent by adc_client. Has bms in msg. Save to database then forward to gui_client.'''
+        global msg, conn, addr 
+        if msg and conn and addr:
+            bms = msg['bms']
+            print(f" BMS: {bms}")
+            rspns = dbs.rsps_per_rqst[purpose]
+            print("Finish the code in save and forward_to_gui_client()")
+            dbs.dc.save_bms(bms)
+            gui_client, gui_socket = self.the_other_socket(self, conn, addr)
+            cmd = json.dumps(msg)
+            gui.socket.send(cmd.encode(FORMAT))
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 
-client_initiated_msgs=[]
-server_initiated_msgs=[]
 
-# remove actions dict if not useful to user...
-actions= dict()
-
-def load_actions_for_msgs():
-      actions[ CFG_IDS ] = self.dc.cfg_ids
-      actions[LUT0] = self.dc.luts[0]
-      actions[LUT1] = self.dc.luts[1]
-      actions[LUT2] = self.dc.luts[2]
-      actions[CLIENT_READY] = 'Ready to send cmds to client to Measure or Configure .'
-
-# remove this if it is not useful to the user...
-meanings=dict()
-
-def load_meanings():
-        meanings[10]=" client requests cfg_ids "
-        meanings[20]= " client requests lookup table for channel 0"
-        meanings[30]= " client requests lookup table for channel 1"
-        meanings[40]= " client requests lookup table for channel 2"
-        meanings[50]= " client reports that it is ready for server cmds"
-        meanings[100]= " Server cmds client to measure  a channel"
-        meanings[101]= " Client reporting measure  on a channel"
-        meanings[200]= " Server cmds client to calibrate for a vin on a channel"    
-        meanings[201]= " Client reporting on calibration for a vin on a channel"    
-
-stepdict=dict()
-stepdict[0]= [3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3, 4.4, 4.5]
-stepdict[1]=[6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0]
-stepdict[2] =[9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 10.0, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 13.0, 13.1, 13.2, 13.3, 13.4, 13.5]
-
-# clientdict={}  # can lookup conn for each client: adc_client, scheduler_client
-clients=["handle_adc_client", "handle_scheduler_client"]
-
-def timestamp(self):
-    '''Returns local time as string, eg: YYYY-mm-DD HH:MM:SS'''
-    dt = time.localtime()
-    return f'{dt[0]}-{dt[1]}-{dt[2]} {dt[3]}:{dt[4]}:{dt[5]}'
-#currently,  The vin is overloaded with 
-#  user input in adc.calibrate(...).  self.vin = float(input("Enter value of vin  "))
-
-
-# def calibrate(chan, vin, conn):
-#     ''' This is a test method in db_server to see if we can calibrate all vins in a channel'''
-#     steps = stepdict[chan]
-#     for vin in steps:
-#         obj= {"purpose":200, "chan" : ch, "vin": vin}
-#         payload= json.dumps(obj)
-#         time.sleep(2)
-#       #  input(f" Press return to send msg to server for chan: {chan}, vin: {vin}")
-#         conn.send(payload.encode(FORMAT))
-#         print( "sending to client: ", payload)
-#global variables
-client_can_respond =False
-
-def handle_adc_client(conn: socket, addr):
+# socket method...
+def handle_client(conn1: socket, addr1):
+    global msg, conn, addr
     print(f"[NEW CONNECTION] {addr} connected.")
-    client_initiated_msgs.clear()
-
     connected = True
+    conn=conn1
+    addr = addr1
     while connected:
-        header = conn.recv(HEADER).decode(FORMAT)  # blocking line
+        header = conn.recv(HEADER).decode(FORMAT)  # blocking line===========
 
         if not header:
             continue
 
         msg_len = int(header)
-        msg = conn.recv(msg_len).decode(FORMAT)
+        amsg = conn.recv(msg_len).decode(FORMAT)     # blocking line =============
         
-        if msg == DISCONNECT_MESSAGE:
+        if amsg == DISCONNECT_MESSAGE:
             connected = False
             break
-        else:
-            jsonx=json.loads(msg)
-            purpose = jsonx['purpose']
-            if purpose == '0':
-                greeting = jsonx['greet']
-                client_id= jsonx["client_id"]
-                print(f" Greeting: {greeting}  Client_id: {client_id}")
-                obj = {"purpose": '1', "purpose" : "received" }
-                payload = json.dumps(obj)
-                conn.send(payload.encode(FORMAT))
-            
-            
-            if purpose == '10':
-                obj= {"purpose": '11', "cfg_ids": dc.cfg_ids }
-                payload = json.dumps(obj)
-                conn.send(payload.encode(FORMAT))
-                #print(f" purpose: {purpose}  clientdict: {clientdict} ")
-            elif purpose == '20' :
-                obj={"purpose": '21', "chan" : 0, "lut" : dc.luts[0]}
-                payload = json.dumps(obj)
-                conn.send(payload.encode(FORMAT))
-
-            elif purpose == '30' :
-                obj={"purpose": '31', "chan" : 1, "lut" : dc.luts[1]}
-                payload = json.dumps(obj)
-                conn.send(payload.encode(FORMAT))
-
-            elif purpose == '40' :
-                obj={"purpose": '41', "chan" : 2, "lut" : dc.luts[2]}
-                payload = json.dumps(obj)
-                conn.send(payload.encode(FORMAT))
-
-            elif purpose == '50' :
-                client_can_respond=True
-                print(f" Client can now respond to Server Cmds:  {client_can_respond} ")
-                #print(f" purpose: {purpose}  clientdict: {clientdict} ")
-            elif purpose == '100':
-                '''server received measurement request.
-                Passes it to adc_client  to have adc make a measurement .'''
-                conn.send(jsonx.encode(FORMAT))  
-            elif purpose == '200':
-                print("200 :server received calibration request..")
-                conn.send(jsonx.encode(FORMAT)) 
-            elif purpose == '101':
-                '''server received measurement response.
-                Tells DataController to save it to db. Notify scheduler.'''
-                dc.save_measurement(jsonx)
-                dc.update_gui(jsonx)
-            elif purpose == '201':
-                print("201:server received calibration response...")
-                dc.save_calibration(jsonx)
-                dc.update_gui(jsonx)
-def handle_scheduler_client(conn: socket, addr):
-    connected = True
-    while connected:
-        header = conn.recv(HEADER).decode(FORMAT)  # blocking line
-        if not header:
-            continue
-        msg_len = int(header)
-        msg = conn.recv(msg_len).decode(FORMAT)
-        if msg == DISCONNECT_MESSAGE:
-            connected = False
-            break
-        else:
-            jsonx=json.loads(msg)
-            purpose = jsonx['purpose']
-            if purpose == '100': #someone requested an adc measure
-                if client_can_respond:
-                    handle_adc_client(msg)
-                    #conn.send(jsonx)
-            elif purpose == '200': # someone requested an adc calibration
-                if client_can_respond:
-                    handler_adc_client(msg)
-                  #conn.send(jsonx)  # send to adc_client
         
-        print(f"[MESSAGE RECEIVED AT SERVER:][{addr}] {msg} ")
-        #print(f" clientdict: {clientdict}")
-    conn.close()
- 
-
+       #print(f" msg received at server: {amsg}")
+       # turn string into dict using json and get info from the msg
+        msg= json.loads(amsg)
+        purpose= msg["purpose"]
+        if purpose == 0:
+            client_id= msg["client_id"]
+            dbs.client_names_by_addr[addr]=client_id
+            dbs.sockets_by_addr[addr]=conn
+            rspns= json.dumps(dbs.rsps_per_rqst[0])
+            conn.send(rspns.encode(FORMAT))
+        # execute the correct action given the purpose...    
+        print(f"\n[MESSAGE RECEIVED][{addr}] {msg} ")
+        print(f" responding to purpose: {purpose}")
+        #print(f"actions: {dbs.rsps_per_rqst}")
+        #print(f"          client_names: {dbs.client_names_by_addr}  \n          sockets: {dbs.sockets_by_addr}\n")
+        
+        #obj={"purpose": purpose + 1, "load": dbs.acts_per_purpose[purpose]}
+        if purpose < 100:
+            rspns = json.dumps(dbs.rsps_per_rqst[purpose])   # given rqst with purpose, returns rspns ( purpose+1)
+        elif purpose in [100,200] :
+            dbs.forward_to_adc_client(purpose)            
+            conn.send(rspns.encode(FORMAT))
+        elif purpose in [101, 201]:
+            dbs.save_and_forward_to_gui_client(purpose)
+            
+        
+    conn1.close()
+#socket method...
 def start():
     server.listen()
+    print(f"[LISTENING] Server is listening on {SERVER}")
     while True:
         conn, addr = server.accept()  # blocking line
-        #         client_handler = clients[ threading.active_count() -1]
-        #         print (f" client_handler: {client_handler}")
-        if threading.active_count()-1 == 0:
-            thread = threading.Thread(target=handle_adc_client, args=(conn, addr))
-        else:
-            thread = threading.Thread(target=handle_scheduler_client, args=(conn, addr))
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
 
         thread.start()
         print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
-        print(f" thread: {thread}")
+
+# --------- calls ------------------
+dbs = db_server()
+dbs.load_actions()
 print("[STARTING] Server is starting ...")
 start()
