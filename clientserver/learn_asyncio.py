@@ -16,7 +16,7 @@ class myscheduler:
         self.reps = -1             # user sets it to a finite number, may be a very large number.
         self.responses = [{},{},{}]
         self.requests=[{},{},{}]
-     #TODO: Implement Steppiing Calibration
+     #TODO: DONE: Implement Steppiing Calibration
     #TODO: Fold this functionality into the scheduler_client, which will send/receive msgs from db_server.
 
     def timestamp(self):
@@ -25,7 +25,7 @@ class myscheduler:
         return f'{dt[0]}-{dt[1]}-{dt[2]} {dt[3]}:{dt[4]}:{dt[5]}'
 
     def set_wait_period(self, secs):
-        '''process will repeat after secs. If step_calibrating, time before next vin...''
+        '''process will repeat after secs. If step_calibrating, time before next vin...'''
         self.wait_period =secs
        
     def set_reps(self, num):
@@ -74,8 +74,6 @@ class myscheduler:
         '''Repeating sequence of tasks: m(0), m(1), m(2), wait. where wait is in seconds and set by user.
         Measure all three channels in order, then sleep for waitTime , then repeat for self.reps.
         A measurement is complete when the server responds with the result.'''
-#         self.requests.clear()
-#         self.responses.clear()
         for n in range(self.reps):
             print(f"Running set {n+1} ")
             await self.request_measure(0)
@@ -83,15 +81,17 @@ class myscheduler:
             await self.request_measure(2)
             print(f" now: ===== {self.timestamp()}========")
             await self.wait_for_next_set()
-        print(f" All Done with {self.reps} sets. Waiting {self.wait_period} seconds between sets!")
-        
+        print(f" All Done with {self.reps} sets. Waiting {self.wait_period} seconds between sets! " )
+   
     async def request_stepping_calibration(self, chan):
-        ''' Uses async to step thru all of the vin voltages in a channel. User must set wait_period
-        as the number of seconds it takes him to adjust his power supply for the next vin. eg: 3 seconds'''
+        '''Uses async to step thru all of the vin voltages in a channel. User must set wait_period
+        as the number of seconds it takes him to adjust his power supply for the next vin. eg: 3 seconds .
+        reps is not used...'''
         steps = steps_per_channel[chan]
         for vin in steps:
             print(vin)
             await self.request_calibrate(chan, vin)
             await self.wait_for_next_set()
         print(f" All Done calibrating channel {chan} in {steps} steps. \
-                Set wait_period higher if you need more time to set power supply. It is now at:  {self.wait_period} ")   
+                Set wait_period higher if you need more time to set power supply. It is now at:  {self.wait_period} ")
+        
