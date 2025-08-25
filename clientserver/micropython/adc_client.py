@@ -1,5 +1,6 @@
 # file: adc_client.py
 # ref: https://github.com/juliogema/python-basic-socket/blob/main/client.py
+# ref: https://duckduckgo.com/?q=tech+with+tim+socket+programming&atb=v314-1&ia=videos&iax=videos&iai=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D3QiPPX-KeSc
 import socket
 import json
 from adc import ADC
@@ -15,7 +16,7 @@ respns_by_client=[]
 
 purpose=' '
 DISCONNECT_MESSAGE = '!DISCONNECT'
-config_requests=[ 10, 20, 30, 40]
+config_requests=[10, 20, 30, 40]
 HEADER = 64
 PORT = 5050
 FORMAT = 'utf-8'
@@ -28,6 +29,7 @@ def hi():
     msg= json.dumps(obj)
     rqsts_to_server.append(msg)
     send(msg)
+    return
 
 def convert_to_dict(lut):
     # print("converting lut: ")
@@ -44,7 +46,14 @@ def server_request(msg):
     rqsts_to_server.append(msg)
  
     #send(DISCONNECT_MESSAGE)
-
+def send_ready():
+    obj={"purpose": 50}
+    msg=json.dumps(obj)
+    send(msg)
+    rqsts_to_server.append(msg)
+    conn.send(msg)
+    print("The adc client is totally configured and ready to respond to server cmds.")
+    
 def log():
     print()
     print("Log of client-server traffic since client startup:")
@@ -80,30 +89,31 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(ADDR)
 
 def send(msg):
+    '''Receives a string, encodes into bytes, sends len and message'''
     message = msg.encode(FORMAT)
     msg_len = len(message)
     send_length = str(msg_len).encode(FORMAT)
     send_length += b' ' * (HEADER - len(send_length))
     client.send(send_length)
     client.send(message)
-    
     #receive msg from server========blocking=============
     while True:
         amsg = client.recv(2048).decode(FORMAT)
         #TODO 3: Leading text in received msg breaks json.loads. Need first char to be '{ and last char to be }'
         # Finish the following and test it thoroughly.
-        rmsg = json.loads(amsg)
-        if not rmsg:
+        print(f"amsg received from svr : { type(amsg)}  {amsg}")
+        if not amsg:
             continue
+        rmsg = json.loads(amsg)
+       
         print(f" rmsg: {type(rmsg)} {rmsg}") # rmsg is hopefuly a dict 
         purpose = rmsg["purpose"]
-        
         if purpose == 1:
-            respns_from_server.append(f"{purpose}")
-            config_all()    
+            respns_from_server.append(f"{purpose}") 
         elif purpose == 11:
             respns_from_server.append(f"{purpose}")
             adc.cfg_ids = tuple(rmsg["cfg_ids"])
+            config(20)
         elif purpose == 21 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
@@ -111,6 +121,7 @@ def send(msg):
             chan = rmsg["chan"]
             lut= rmsg["lut"]
             adc.luts[chan]= convert_to_dict(lut)
+            config(30)
         elif purpose == 31 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
@@ -118,6 +129,7 @@ def send(msg):
             chan = rmsg["chan"]
             lut= rmsg["lut"]
             adc.luts[chan]= convert_to_dict(lut)
+            config(40)
         elif purpose == 41 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
@@ -125,6 +137,8 @@ def send(msg):
             chan = rmsg["chan"]
             lut= rmsg["lut"]
             adc.luts[chan]= convert_to_dict(lut)
+            if isconfigured():
+                send_ready()
         elif purpose == 100 : #measure
             rqsts_from_server.append(f"100 purpose: {purpose}")
             chan = rmsg['chan']
@@ -147,13 +161,12 @@ def send(msg):
            print(f"payload for : {purpose}  {payload}")
            send(payload)
 
-hi()
-config_all()
-if isconfigured():
-    obj={"purpose": 50}
-    msg=json.dumps(obj)
-    send(msg)
-    rqsts_to_server.append(msg)
-    print("The adc client is totally configured and ready to respond to server cmds.")
+# hi()
+config(10)
+config(20)
+config(30)
+config(40)        
+
+
 log()
 

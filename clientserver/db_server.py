@@ -9,7 +9,8 @@ from data_controller import DataController
 
 HEADER = 64  # bit
 PORT = 5050
-SERVER = '192.168.254.19'  #change according to the ipaddress of your host.
+#SERVER = '192.168.254.19'  #change according to the ipaddress of your host.
+SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECTED"
@@ -30,7 +31,7 @@ class  db_server:
         self.rsps_per_rqst              = dict()
         self.load_rsps()                # a dict
 
-    def load_actions(self):
+    def load_rsps(self):
         '''As server receives msgs, the purpose is extracted and actions are performed. this dict returns the response msg'''
         # 5 < purpose <99 are returned to sender for both clients  100 <= purpose <= 500 : save to db and forward to the other client
         #self.rsps_per_rqst = dict()
@@ -115,10 +116,9 @@ def handle_client(conn1: socket, addr1):
     addr = addr1
     while connected:
         header = conn.recv(HEADER).decode(FORMAT)  # blocking line===========
-
         if not header:
             continue
-
+        # print(f" header: {header}")
         msg_len = int(header)
         amsg = conn.recv(msg_len).decode(FORMAT)     # blocking line =============
         
@@ -145,6 +145,7 @@ def handle_client(conn1: socket, addr1):
         #obj={"purpose": purpose + 1, "load": dbs.acts_per_purpose[purpose]}
         if purpose < 100:
             rspns = json.dumps(dbs.rsps_per_rqst[purpose])   # given rqst with purpose, returns rspns ( purpose+1)
+            conn.send(rspns.encode(FORMAT))
         elif purpose in [100,200] :
             dbs.forward_to_adc_client(purpose)            
             conn.send(rspns.encode(FORMAT))
@@ -166,6 +167,6 @@ def start():
 
 # --------- calls ------------------
 dbs = db_server()
-dbs.load_actions()
+dbs.load_rsps()
 print("[STARTING] Server is starting ...")
 start()
