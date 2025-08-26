@@ -27,7 +27,7 @@ ADDR = (SERVER, PORT)
 def hi():
     obj={"purpose": 0, "client_id": "adc_client"}
     msg= json.dumps(obj)
-    rqsts_to_server.append(msg)
+    rqsts_to_server.append(0)
     send(msg)
     return
 
@@ -42,15 +42,15 @@ def convert_to_dict(lut):
 # requests to the server to download luts and cfg_ids
 def server_request(msg):
     send(msg)
-    time.sleep(2)
-    rqsts_to_server.append(msg)
+    time.sleep(1)
+    rqsts_to_server.append(msg["purpose"])
  
     #send(DISCONNECT_MESSAGE)
-def send_ready():
-    obj={"purpose": 50}
+def send_ready(num):
+    obj={"purpose": num}
     msg=json.dumps(obj)
     send(msg)
-    rqsts_to_server.append(msg)
+    rqsts_to_server.append(msg["purpose"])
     conn.send(msg)
     print("The adc client is totally configured and ready to respond to server cmds.")
     
@@ -61,8 +61,6 @@ def log():
     print("respns_from_server: ", respns_from_server)
     print("rqsts_from_server: ", rqsts_from_server)
     print("respns_from_Client: ", respns_by_client)
-#     if isconfigured():
-#         print("adc client is totally configured and ready to respond to server cmds.")
 
 def isconfigured():
     cfgOK= adc.cfg_ids != 0
@@ -79,7 +77,7 @@ def config(num):
         obj={"purpose": num}
         msg = json.dumps(obj)
         send(msg)
-        rqsts_to_server.append(msg)
+        rqsts_to_server.append(msg["purpose"])
         return
 
         print("========Server CMDS=========")
@@ -109,36 +107,39 @@ def send(msg):
         print(f" rmsg: {type(rmsg)} {rmsg}") # rmsg is hopefuly a dict 
         purpose = rmsg["purpose"]
         if purpose == 1:
-            respns_from_server.append(f"{purpose}") 
+            respns_from_server.append(f"{purpose}")
+            config(10)    #rqst cfg_ids
         elif purpose == 11:
             respns_from_server.append(f"{purpose}")
             adc.cfg_ids = tuple(rmsg["cfg_ids"])
-            config(20)
+            config(20)    #rqst lut[0]
         elif purpose == 21 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
-            '''lut from one of the channels'''
+            '''channel and lut '''
             chan = rmsg["chan"]
             lut= rmsg["lut"]
             adc.luts[chan]= convert_to_dict(lut)
-            config(30)
+            config(30)    #rqst lut[1]
         elif purpose == 31 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
-            '''lut from one of the channels'''
+            '''Channel and lut '''
             chan = rmsg["chan"]
             lut= rmsg["lut"]
             adc.luts[chan]= convert_to_dict(lut)
-            config(40)
+            config(40)    #rqst lut[2]
         elif purpose == 41 :
             print(f" ******Handling purpose: {purpose}*****")
             respns_from_server.append(f"{purpose}")
-            '''lut from one of the channels'''
+            '''channel and lut '''
             chan = rmsg["chan"]
-            lut= rmsg["lut"]
-            adc.luts[chan]= convert_to_dict(lut)
+            lut = rmsg["lut"]
+            adc.luts[chan] = convert_to_dict(lut)
             if isconfigured():
-                send_ready()
+                send_ready(50)      #notify svr that adc_client is ready
+        elif purpose == 51:
+            print("server knows that adc_client is ready for requests.")
         elif purpose == 100 : #measure
             rqsts_from_server.append(f"100 purpose: {purpose}")
             chan = rmsg['chan']
@@ -161,7 +162,7 @@ def send(msg):
            print(f"payload for : {purpose}  {payload}")
            send(payload)
 
-# hi()
+hi()
 config(10)
 config(20)
 config(30)
