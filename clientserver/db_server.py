@@ -13,7 +13,7 @@ PORT = 5050
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
-DISCONNECT_MESSAGE = "!DISCONNECTED"
+DISCONNECT_MESSAGE =  "!DISCONNECTED"
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 
@@ -25,26 +25,27 @@ addr=None
 class  db_server:
     def __init__(self): 
         self.dc = DataController((1,2,3))  # initialize with your project's cfg_ids here instead of (1,2,3)
-        self.clients_READY              = dict()
-        self.sockets_by_addr            = dict()
-        self.client_names_by_addr       = dict()
-        self.rsps_per_rqst              = dict()
+        self.clients_READY               = dict()
+        self.sockets_by_addr             = dict()
+        self.client_names_by_addr   = dict()
+        self.rsps_per_rqst                  = dict()
         self.load_rsps()                # a dict
 
     def load_rsps(self):
         '''As server receives msgs, the purpose is extracted and actions are performed. this dict returns the response msg'''
-        # 5 < purpose <99 are returned to sender for both clients  100 <= purpose <= 500 : save to db and forward to the other client
+        # 5 < purpose <99 are returned to sender for both clients
+        # for 100 <= purpose <= 500 : save data to db and forward to the other client
         #self.rsps_per_rqst = dict()
-        self.rsps_per_rqst[0] =   {"purpose":1, "greet": "Hello. Glad to have you connected."} 
+        self.rsps_per_rqst[0] =   {f"purpose":1, "greet": "Server says welcome {addr}!"} 
         self.rsps_per_rqst[10] = {"purpose":11, "cfg_ids": tuple(self.dc.cfg_ids)}
         self.rsps_per_rqst[20] = {"purpose":21, "chan":0, "lut": self.dc.luts[0]}
         self.rsps_per_rqst[30] = {"purpose":31, "chan":1, "lut":  self.dc.luts[1]}
         self.rsps_per_rqst[40] = {"purpose":41, "chan":2, "lut":  self.dc.luts[2]}
         self.rsps_per_rqst[50] = {"purpose":51, "status": self.clients_READY  }
-        self.rsps_per_rqst[100]= {"purpose":100,  "status": "forwarded to adc_client" }            # gui_client -> dbs, then fwd to :  adc_client
-        self.rsps_per_rqst[200]= {"purpose":200, "status": "forwarded to adc_client" }             # gui_client -> dbs, then fwd to :  adc_client
-        self.rsps_per_rqst[101]= {"purpose":101, "status": "saved and forwarded to adc_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
-        self.rsps_per_rqst[201]= {"purpose":201, "status": "saved and forwarded to adc_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
+        self.rsps_per_rqst[100]= {"purpose":100,  "status": "forward msg to adc_client" }            # gui_client -> dbs, then fwd to :  adc_client
+        self.rsps_per_rqst[200]= {"purpose":200,  "status": "forward msg to adc_client"  }             # gui_client -> dbs, then fwd to :  adc_client
+        self.rsps_per_rqst[101]= {"purpose":101, "status": "save data and forward to gui_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
+        self.rsps_per_rqst[201]= {"purpose":201, "status": "save data and forward to gui_client" }   # adc_client -> dbs->dbi, then fwd to :  gui_client
 
     def acknowlege_client(self):
          '''Responding to 0:connect and introduce. Create and send back a welcome msg. '''
@@ -122,14 +123,14 @@ def handle_client(conn1: socket, addr1):
         msg_len = int(header)
         amsg = conn.recv(msg_len).decode(FORMAT)     # blocking line =============
         
-        if amsg == DISCONNECT_MESSAGE:
+        if amsg ==  DISCONNECT_MESSAGE:
             connected = False
             break
         
        #print(f" msg received at server: {amsg}")
        # turn string into dict using json and get info from the msg
         msg= json.loads(amsg)
-        purpose= msg["purpose"]
+        purpose = msg["purpose"]
         if purpose == 0:
             client_id= msg["client_id"]
             dbs.client_names_by_addr[addr]=client_id
