@@ -29,14 +29,14 @@ class  db_server:
         self.sockets_by_addr             = dict()
         self.client_names_by_addr   = dict()
         self.rsps_per_rqst                  = dict()
-        self.load_rsps()                # a dict
+        self.load_rsps()                      # a dict
 
     def load_rsps(self):
         '''As server receives msgs, the purpose is extracted and actions are performed. this dict returns the response msg'''
-        # 5 < purpose <99 are returned to sender for both clients
+        # 0 < purpose <99 are returned to sender for both clients
         # for 100 <= purpose <= 500 : save data to db and forward to the other client
         #self.rsps_per_rqst = dict()
-        self.rsps_per_rqst[0] =   {f"purpose":1, "greet": "Server says welcome {addr}!"} 
+        self.rsps_per_rqst[0]   = {"purpose":1, "greet": "Welcome!"}
         self.rsps_per_rqst[10] = {"purpose":11, "cfg_ids": tuple(self.dc.cfg_ids)}
         self.rsps_per_rqst[20] = {"purpose":21, "chan":0, "lut": self.dc.luts[0]}
         self.rsps_per_rqst[30] = {"purpose":31, "chan":1, "lut":  self.dc.luts[1]}
@@ -50,7 +50,7 @@ class  db_server:
     def acknowlege_client(self):
          '''Responding to 0:connect and introduce. Create and send back a welcome msg. '''
          global msg, conn, addr
-         obj = {"purpose": 1, "load": "Hello. Welcome aboard!."}
+         obj =f' {"purpose": 1, "load": "Hello. Welcome aboard {addr}!."}'
          msg=json.dumps(obj)
          print(f"msg: {msg}")
          conn.send(msg)
@@ -64,15 +64,15 @@ class  db_server:
         
     def the_other_socket(self, conn, addr):
         ''' (conn, addr) is from active client. Returns the other client_name and other_socket'''
-        if len(sockets_by_addr) < 2:  #only one socket in dict
+        if len(self.sockets_by_addr) < 2:  #only one socket in dict
             other_client = other_socket = None
             print(f"Only one client has connected so other_client: {other_client}  and other_socket: {other_socket}")
         else:
-            sockets= set (sockets_by_addr.keys())
+            sockets= set (self.sockets_by_addr.keys())
             other = sockets.difference({addr}).pop()  # other is an addr (string)
-            other_client_name  = client_names_by_addr[other]  #other_client is name of client, a string
-            other_socket = sockets_by_addr[other]       # other_socket is a socket
-            print(f" other_client : {other_client} ")
+            other_client_name  = self.client_names_by_addr[other]  #other_client is name of client, a string
+            other_socket = self.sockets_by_addr[other]       # other_socket is a socket
+            print(f" other_client : {other_client_name} ")
             print(*f" other_socket: {other_socket} ")
         return (other_client_name, other_socket)
     
@@ -85,11 +85,13 @@ class  db_server:
     def forward_to_adc_client(self, purpose):
         ''' msg is from gui_client. Forward msg to adc_client'''
         global msg, addr, conn
-        if msg and conn and addr:
-            adc_client, adc_socket = the_other_socket(conn, addr)
+        if len(self.sockets_by_addr) > 1 and  msg and conn and addr:
+            adc_client, adc_socket = self.the_other_socket(conn, addr)
             cmd = json.dumps(msg)
             print(f" sending {cmd}  to {adc_client} on socket: {adc_socket}")
-            adc_socket.send(cmd)
+            adc_socket.send(cmd.encode(FORMAT))
+        else:
+            print("Only one socket in sockets_by_addr. Wait for other client to connect...")
                 
     def save_and_forward_to_gui_client(self, purpose):
         '''Msg sent by adc_client. Has bms in msg. Save to database then forward to gui_client.'''
@@ -103,6 +105,7 @@ class  db_server:
             gui_client, gui_socket = self.the_other_socket(self, conn, addr)
             cmd = json.dumps(msg)
             gui.socket.send(cmd.encode(FORMAT))
+    
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
@@ -130,21 +133,23 @@ def handle_client(conn1: socket, addr1):
        #print(f" msg received at server: {amsg}")
        # turn string into dict using json and get info from the msg
         msg= json.loads(amsg)
-        purpose = msg["purpose"]
+        purpose = int(msg["purpose"])
         if purpose == 0:
             client_id= msg["client_id"]
             dbs.client_names_by_addr[addr]=client_id
             dbs.sockets_by_addr[addr]=conn
-            rspns= json.dumps(dbs.rsps_per_rqst[0])
-            conn.send(rspns.encode(FORMAT))
+            rspns ={"purpose": 1, "greet": f"Svr says welcome {client_id}", "client_id": client_id}
+            rmsg = json.dumps(rspns)
+            conn.send(rmsg.encode(FORMAT))
         # execute the correct action given the purpose...    
         print(f"\n[MESSAGE RECEIVED][{addr}] {msg} ")
-        print(f" responding to purpose: {purpose}")
+        print(f" sending msg : {purpose+1 }  responding to msg : {purpose}")
         #print(f"actions: {dbs.rsps_per_rqst}")
         #print(f"          client_names: {dbs.client_names_by_addr}  \n          sockets: {dbs.sockets_by_addr}\n")
         
         #obj={"purpose": purpose + 1, "load": dbs.acts_per_purpose[purpose]}
-        if purpose < 100:
+      
+        if 5 < purpose < 100:
             rspns = json.dumps(dbs.rsps_per_rqst[purpose])   # given rqst with purpose, returns rspns ( purpose+1)
             conn.send(rspns.encode(FORMAT))
         elif purpose in [100,200] :
@@ -153,7 +158,7 @@ def handle_client(conn1: socket, addr1):
         elif purpose in [101, 201]:
             dbs.save_and_forward_to_gui_client(purpose)
             
-        
+    conn.close()   
     conn1.close()
 #socket method...
 def start():
@@ -171,3 +176,4 @@ dbs = db_server()
 dbs.load_rsps()
 print("[STARTING] Server is starting ...")
 start()
+
