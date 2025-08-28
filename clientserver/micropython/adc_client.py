@@ -97,9 +97,9 @@ def send(msg):
     #receive msg from server========blocking=============
     while True:
         amsg = client.recv(2048).decode(FORMAT)
-        #TODO 3: Leading text in received msg breaks json.loads. Need first char to be '{ and last char to be }'
+        #TODO 3: Leading text in received msg breaks json.loads(). Need first char to be '{ and last char to be }'
         # Finish the following and test it thoroughly.
-        print(f"amsg received from svr : { type(amsg)}  {amsg}")
+        #print(f"amsg received from svr : { type(amsg)}  {amsg}")
         if not amsg:
             continue
         rmsg = json.loads(amsg)
