@@ -29,6 +29,28 @@ Config = namedtuple(
         "LUT",
     ),
 )
+
+CONFIG_NOLUTS = namedtuple(
+    "CONFIG_NOLUTS",
+    ("id",
+        "owner",
+        "app_id",
+        "app_desc",
+        "channel_id",
+        "channel_description",
+        "version_id",
+        "version_description",
+        "creation_time",
+        "mosfet",
+        "mosfet_type",
+        "tempC",
+        "r1",
+        "r2",
+        "rp",
+        "rg",
+        "LUT_CALIBRATED"
+)
+)
 Short_Record = namedtuple(
     "Short_Record",
     ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"),
@@ -36,7 +58,7 @@ Short_Record = namedtuple(
 
 BMS = namedtuple(
     "BMS",
-    (
+    (  "id",
         "cfg_id",
         "meas_type",
         "timestamp",
