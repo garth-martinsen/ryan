@@ -6,16 +6,17 @@ It will Store and retrieve json files from/to DB and will convert  LUTS to pytho
 The database interface,dbi, will be instantiated only when path to sqlite3 db file is provided. Config
 can be requested from dbi only after the row ids of the application channels are passed from webserver.
 """
+# TODO 3: clean up unused methods in DataController.py. Modernize to fit db_server needs only. (???)
 
 # import math
 # import asyncio
 # import os
 # import rpvdclass
-import time
+#import time
 import ast
-import random
+#import random
 import json
-from data_controller_config import Lut_Limits, lsb, circuits
+from data_controller_config import Lut_Limits,  circuits
 from database_interface import DatabaseInterface, BMS
 from collections import OrderedDict
 
@@ -26,21 +27,14 @@ class DataController:
 
     def __init__(self, cfg_ids):
         self.cfg_ids = cfg_ids
-        self.cfg = []  # cfg will hold 3 channels of dict [0,1,2]
-        self.luts = [
-            {},
-            {},
-            {},
-        ]  # lut will hold 3 Dictionaries: lut42, lut84 and lut126
+        self.cfg = [[],[],[]]    # cfg will hold 3 channels of list [0,1,2]
+        self.luts = [   {},  {},  {} ]  # lut will hold 3 Dictionaries: lut42, lut84 and lut126
         self.lut_limits = {}  # dict {channel: lut_limits} channels are: 0,1,2
         self.dbi = DatabaseInterface()
         self.lsb = 4.095 / pow(2, 15)  # ~ 125 µvolts
-        self.limit = 255e-6
+        #self.limit = 255e-6
         self.row_id = 0
         self.load_config(self.cfg_ids)
-
-    def cfg_ids(self):
-        return self.cfg_ids
 
     def list_all_choices(self):
         return self.dbi.list_all_choices()
@@ -104,8 +98,9 @@ class DataController:
 
     def save_measurement(self, msg):
         """Purpose: save measurement on a channel to the db.
-        The db_interface will use msg values for the insert statement."""
-        #print("datacontroller.save_measurement() called with args: cols, vals")
+        The db_interface will use msg values for the insert statement.
+        The cfg_id will indicate the channel"""
+        msg.pop("chan")
         self.dbi.save_measurement(msg)
 
     def save_calibration(self, msg):
@@ -141,7 +136,7 @@ class DataController:
         self._limit_lut(channel)
 
     def measure(self, circuit):
-        """Initiates asyncio task to sample, process and return vm, sd"""
+        """Initiates asyncio task to sample, process and return vm, sd, keep, etc.  TBD """
         print(
             f"TBD: DataController  will initiate asyncio task to measure vm in circuit {circuit}  "
         )
@@ -167,14 +162,16 @@ class DataController:
             print("outside of limits. try again...")
             return
         else:
-            l = u = -99  # init with silly
+            l = u = -99  # init with silly lower vm value, it will step up until k>vm
             for k in ord_keys:
-                if k > v:
+                if k > vm:
                     u = k
                     break
                 else:
                     l = k
-            return round(alut[l] + (v - l) / (u - l) * (alut[u] - alut[l]), 7)
+            #return interpolation of vb. Assumption that if vm is x % of range between lower and upper vm values,
+            #that vb is x% of range between vb_low and vb_high...
+            return round(alut[l] + (vm - l) / (u - l) * (alut[u] - alut[l]), 7)
 
     def _as_volts(self, a2d_mean, a2d_sd, channel):
         """Maps a2d  to voltage. Returns None"""
