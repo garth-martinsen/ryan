@@ -7,7 +7,7 @@ import sqlite3
 import time
 
 # import json
-from database_interface_config import db_path, Config, Short_Record, BMS
+from database_interface_config import db_path, Config, Short_Record, BMS,CONFIG_NOLUTS
 
 
 class DatabaseInterface:
@@ -19,19 +19,19 @@ class DatabaseInterface:
         dt = time.localtime()
         return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
 
-    def list_calibrations(self):
-        calibs = []
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        self.cx.row_factory = self._config_namedtuple_factory
-        cu = self.cx.cursor()
-        select_str = "SELECT  id, type, timestamp, vin, vm, vb, error from BMS;"
-        #print("select_str: ", select_str)
-        # Each row is a record.
-        for row in cu.execute(select_str):
-            # print("row: ", row)
-            calibs.append(row)
-        return calibs
+#     def list_calibrations(self):
+#         calibs = []
+#         self.cx = sqlite3.connect(self.db_path)
+#         self.cx.isolation_level = None
+#         self.cx.row_factory = self.bms_namedtuple_factory
+#         cu = self.cx.cursor()
+#         select_str = "SELECT  id, type, timestamp, vin, vm, vb, error from BMS;"
+#         #print("select_str: ", select_str)
+#         # Each row is a record.
+#         for row in cu.execute(select_str):
+#             # print("row: ", row)
+#             calibs.append(row)
+#         return calibs
 
     def _short_namedtuple_factory(self, cursor, row):
         """Returns row as a Short_Record:
@@ -39,7 +39,7 @@ class DatabaseInterface:
         """
         return Short_Record(*row)
 
-    def bms_namedtuple_factory(self, cursor, row):
+    def _bms_namedtuple_factory(self, cursor, row):
         return BMS(*row)
 
     def _config_namedtuple_factory(self, cursor, row):
@@ -47,6 +47,9 @@ class DatabaseInterface:
         Config = namedtuple("Config", ("id", "owner", "app_id", "app_desc", "channel_id", "channel_description","version_id","version_description", "creation_time","mosfet",                "mosfet_type" ,"tempC", "r1","r2","rp","rg","LUT_CALIBRATED", "LUT") )
         """
         return Config(*row)
+    def _configs_nolutstuple_factory(self, cursor,row):
+        '''Returns row as CONFIG_NOLUTS '''
+        return CONFIG_NOLUTS(*row)
     
     def create_cols_vals(self, msg):
         '''Removes purpose, Returns two lists with column names (cols) and values (vals).'''
@@ -102,6 +105,8 @@ class DatabaseInterface:
         insert_str = insert_str.replace("[", "'[")
         insert_str = insert_str.replace("]", "]'")
         return insert_str
+    # msg is BMS ( id integer primary key, cfg_id integer,type varchar, timestamp integer,
+    # a2d real, a2d_sd real, vm real, vb real, vin real, error real, keep varchar, sample_period real, store_time real, gate_time real )
 
     def save_measurement(self, msg):
         """Use the values in msg to populate values in insert statement."""
@@ -112,6 +117,7 @@ class DatabaseInterface:
         msg["type"] = "m"
         ts = self.timestamp()
         msg["timestamp"] = ts
+        #msg.pop("chan")
         cols, vals = self.create_cols_vals(msg)
         #print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
         insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "
@@ -124,24 +130,48 @@ class DatabaseInterface:
     def save_calibration(self, msg):
         """saves all in the BMS table. the type column will show 'c'"""
         msg["type"] = "c"
+        msg.pop("chan")
         cols, vals = self.create_cols_vals(msg)
-        insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}  "
+        insert_str = f" insert into BMS {tuple(cols)} values {tuple(vals)}  "
         insert_str = self.format_insert(insert_str)
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
         cu.execute(insert_str)
 
-    def list_BMS(self):
+    def list_calibrations(self):
         calibs = []
-        select_str = " Select * from BMS"
+        select_str = "Select * from BMS where type='c'"
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
+        self.cx.row_factory = self._bms_namedtuple_factory
         cu = self.cx.cursor()
         for row in cu.execute(select_str):
             calibs.append(row)
         return calibs
 
+    def list_measurements(self):
+        records = []
+        select_str = "Select * from BMS where type='m' "
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        self.cx.row_factory = self._bms_namedtuple_factory
+        cu = self.cx.cursor()
+        for row in cu.execute(select_str):
+            records.append(row)
+        return records
+    
+    def get_configs_no_luts(self, cfg_ids):
+        records = []
+        select_str = f'select  ID, owner, app_id, app_desc, channel_id, CHANNEL_DESC, VERSION_ID, VERSION_DESC, TIMESTAMP, MOSFET_ID, MOSFET_TYPE, TEMPC, R1, R2, RP, RG, CALIBRATED from CONFIG where id in {cfg_ids} order by id;'
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        self.cx.row_factory = self. _records_nolutstuple_factory
+        cu = self.cx.cursor()
+        for row in cu.execute(select_str):
+            records.append(row)
+        return records
+    
     #     def store_lut(self, lut_json, channel_id, version_id, version_desc):
     #         '''Stores a new record in config table. values are for whole row but some are replaced with new info'''
     #         #TODO: Needs testing...
