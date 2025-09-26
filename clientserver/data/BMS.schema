@@ -1,0 +1,26 @@
+These items will be very close to what you will find in the sqlite cmd line and python code. If not exact, your should
+be able to correct the following so you can use them...
+
+### schema
+CREATE TABLE BMS ( id integer primary key, cfg_id integer,type varchar, timestamp integer,  a2d real, a2d_sd real, vm real, vb real, vin real, error real, keep varchar, sample_period real, store_time real, gate_time real );
+
+BMS_fields=  ( "id" , "cfg_id" ,"type" ,"timestamp", "a2d", "a2d_sd" , "vm" , "vb" , "vin" , "error" , "keep" , "sample_period" , "store_time", "gate_time" );
+
+### BMS namedtuple:
+BMS = namedtuple("BMS", BMS_fields)
+
+### ###use in database select statement:
+    def _bms_nametuple_factory(self, cursor, row):
+        '''Returns a db row as a BMS'''
+        return BMS(*row)
+...
+
+        records=[]
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        self.cx.row_factory = self._bms_namedtuple_factory
+        cu = self.cx.cursor()
+        for row in cu.execute("select * from CONFIG"):
+            records.append(row)
+        return records
+

@@ -1,0 +1,27 @@
+These items will be very close to what you will find in the sqlite cmd line and python code. If not exact, your should
+be able to correct the following so you can use them...
+
+#### schema 
+CREATE TABLE CONFIG (ID INTEGER PRIMARY KEY , owner varchar, app_id integer, app_desc varchar, channel_id integer, CHANNEL_DESC VARCHAR , VERSION_ID INTEGER NOT NULL, VERSION_DESC VARCHAR,  TIMESTAMP INTEGER,  MOSFET_ID INTEGER, MOSFET_TYPE VARCHAR, TEMPC REAL,ADC_GAIN INTEGER, ADC_SAMPLE_RATE INTEGER,  R1 REAL, R2 REAL, RP REAL, RG REAL, CALIBRATED integer , LUT VARCHAR);
+
+### fields for namedtuple
+CONFIG_fields=("ID" ,"OWNER" , "APP_ID", "APP_DESC" , "CHANNEL_ID" , "CHANNEL_DESC" , "VERSION_ID" , "VERSION_DESC" ,  "TIMESTAMP" , " MOSFET_ID" , "MOSFET_TYPE", "TEMPC" ,"ADC_GAIN", "ADC_SAMPLE_RATE" ,  "R1" , "R2" , "RP", "RG" , "CALIBRATED"  ,"LUT" )
+
+### namedtuple creation so that select statements can be saved into a namedtuple. Placed in DatabaseInterface_config.py
+CONFIG = namedtuple( "CONFIG", CONFIG_fields)
+
+###use in database select statement:
+    def _config_namedtuple_factory(self, cursor, row):
+        '''Returns a db row as a Config'''
+        return Config(*row)
+...
+
+        records=[]
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        self.cx.row_factory = self._config_namedtuple_factory
+        cu = self.cx.cursor()
+        for row in cu.execute("select * from CONFIG"):
+            records.append(row)
+        return records
+
