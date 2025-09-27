@@ -6,9 +6,7 @@ from collections import namedtuple
 Lut_Limits = namedtuple(
     "Lut_Limits", ("circuit_name", "lower_limit", "upper_limit", "length")
 )
-Config = namedtuple(
-    "Config",
-    (
+CONFIG_FIELDS =    (
         "id",
         "owner",
         "app_id",
@@ -21,35 +19,18 @@ Config = namedtuple(
         "mosfet",
         "mosfet_type",
         "tempC",
+        "ADC_GAIN",
+        "ADC_SAMPLE_RATE",
         "r1",
         "r2",
         "rp",
         "rg",
         "LUT_CALIBRATED",
         "LUT",
-    ),
-)
-
-CONFIG_NOLUTS = namedtuple(
-    "CONFIG_NOLUTS",
-    ("id",
-        "owner",
-        "app_id",
-        "app_desc",
-        "channel_id",
-        "channel_description",
-        "version_id",
-        "version_description",
-        "creation_time",
-        "mosfet",
-        "mosfet_type",
-        "tempC",
-        "r1",
-        "r2",
-        "rp",
-        "rg",
-        "LUT_CALIBRATED"
-)
+    )
+Config = namedtuple(
+    "Config",
+    CONFIG_FIELDS
 )
 Short_Record = namedtuple(
     "Short_Record",
@@ -58,7 +39,7 @@ Short_Record = namedtuple(
 
 BMS = namedtuple(
     "BMS",
-    (  "id",
+    (
         "cfg_id",
         "meas_type",
         "timestamp",
