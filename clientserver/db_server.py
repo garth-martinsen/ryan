@@ -2,7 +2,7 @@
 import socket
 import threading
 import json
-from svr_data_controller_0922 import SvrDataController
+from svr_data_controller import SvrDataController
 HEADER = 64  # bit
 PORT = 5050
 SERVER = socket.gethostbyname(socket.gethostname())
