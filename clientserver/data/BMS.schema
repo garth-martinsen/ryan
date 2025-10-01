@@ -2,7 +2,7 @@ These items will be very close to what you will find in the sqlite cmd line and 
 be able to correct the following so you can use them...
 
 ### schema
-CREATE TABLE BMS ( id integer primary key, cfg_id integer,type varchar, timestamp integer,  a2d real, a2d_sd real, vm real, vb real, vin real, error real, keep varchar, sample_period real, store_time real, gate_time real );
+ CREATE TABLE BMS ( id integer primary key, cfg_id integer,type varchar, timestamp varchar,  a2d real, a2d_sd real, vm real, vb real, vin real, error real, keep varchar, sample_period real, store_time real, gate_time real );
 
 BMS_fields=  ( "id" , "cfg_id" ,"type" ,"timestamp", "a2d", "a2d_sd" , "vm" , "vb" , "vin" , "error" , "keep" , "sample_period" , "store_time", "gate_time" );
 
