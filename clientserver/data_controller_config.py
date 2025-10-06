@@ -9,5 +9,4 @@ Lut_Limits = namedtuple(
 
 lsb = 4 / pow(2, 15)
 circuits = ["C42", "C84", "C126"]  # indexed by [0,1,2]
-# dbpath = "/Users/garth/Programming/MicroPython/usb/ryan/voltage_divider/data/db_rt"
-dbpath = "/Users/garth/DIST/clientServer/ryan/clientserver/data/db_rt"
+dbpath = "/Users/garth/DEV/ryan/clientserver/data/rt_db"
