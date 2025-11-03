@@ -4,31 +4,31 @@
 from adc_cfg import (
     names,
     i2c,
-    ads,
     Measurements,
     Stats,
-    SvrReport,
+    tolerance, 
     measurements,
     allPins,
     gatePins,
+    ads
 )
-from adc_cfg import adc_sample_rate, _BUFFERSIZE
-from machine import Pin, RTC, SoftI2C, PWM, Timer
-import ads1x15
+from adc_cfg import adc_sample_rate, _BUFFERSIZE, tolerance
+from machine import Pin,  SoftI2C, PWM, Timer
 from time import ticks_us, ticks_diff, ticks_ms, localtime, time
 import math
 import sys
+import time
 
 up = sys.implementation.name == "micropython"
 import json
 
-# datapath = '/Users/garth/Programming/python3/python-basic-socket/data'
 datapath = "/Users/garth/DIST/clientserver/ryan/clientserver/data"
 
 
 class ADC:
     def __init__(self):
         self.names = names
+        self.tolerance=tolerance
         self.channel = -99  # Must be one of [0,1,2] when running
         self.pins = allPins
         self.gates = gatePins
@@ -37,18 +37,19 @@ class ADC:
         self.sample_period = 1 / _BUFFERSIZE
         self.gate_time = -1  # time (secs) from gate_open until gate_close on a circuit
         self.store_time = 0  # time needed to store a single pair of a2d & uclick values
-        self.rtc = (
-            RTC()
-        )  # rtc us realtime clock, which furnishes datetimestamp for files.
         self.check_i2c()
         # self.wait_period = 60        # passed in in async method: schedule_tasks(); used to sleep before repeating.
         # self.tasks=[]                       # passed in in async method: schedule_tasks()
         self.initialize_gates()  # all gates set to high which stops all current flow
         self.first_sample = True
-        self.lsb = 4.095 / 32768
+        self.lsb = 0    # set in the measurement method depending on channel
         self.luts = [{}, {}, {}]
         self.cfg_ids = ()
+        self.configs=[ [], [], [] ]
         self.vin = -99  # set in calibrate(...) else remains -99
+        self.gain_per_chan = {0:0, 1:1, 2:1}
+        self.FS_per_chan = {0:6.144, 1:4.095, 2:4.095}
+
 
     def check_i2c(self):
         """if ADS1115 ADDR pin is grounded, should return 72"""
@@ -61,13 +62,14 @@ class ADC:
         """Shows all of the self attributes..."""
         print("r attributes: ", self.__dict__.keys())
 
-    def datetimestamp(self):
-        dt = self.rtc.datetime()
-        return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[4]}:{dt[5]}:{dt[6]}.{dt[7]}"
+    def timestamp(self):
+        """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
+        dt = time.localtime()
+        return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[3]}:{dt[4]}:{dt[5]}"  # exclude day-of-week and julian date.
 
     def calibrate(self, chan, purpose, vin):
-        purpose = "calibrate"
         # self.vin = float(input("Enter value of vin  "))
+        self.vin = vin
         print(f"Called adc.calibrate(), Chan: {chan} Vin: {vin} purpose: { purpose}")
         return self.measure(chan, purpose)
 
@@ -77,15 +79,18 @@ class ADC:
         # !!!always reset the counter, index_put,  before a measurement.!!!
         self.index_put = 0
         self.channel = ch
+        ads.gain = self.gain_per_chan[ch]
+        self.FS = self.FS_per_chan[ch]
+        self.lsb= self.FS/32768
         # print("gate open: " , gate_opened)
         self.turn_on(ch)
         gate_opened = ticks_us()
         # add handler for irq
         self.pins.alert.irq(trigger=Pin.IRQ_FALLING, handler=self.sample_auto)
-        ads.conversion_start(
-            adc_sample_rate, self.channel
-        )  # if channel==0 the a2d values will come from A0, if 1 then A1, if 2 then A2
-        print(" Wait for samples...", _BUFFERSIZE)
+        ads.conversion_start( adc_sample_rate, ch)
+        # if channel==0 the a2d values will come from A0, if 1 then A1, if 2 then A2
+        print("===========measuring=========")
+        print(" Wait for samples...", _BUFFERSIZE, "  FS: ",self.FS , " LSB : ", self.lsb)
         while (
             self.index_put < _BUFFERSIZE
         ):  # loops until a2d and uclicks arrays are filled
@@ -142,10 +147,10 @@ class ADC:
             self.gates[i].on()
         self.show_gates()
 
-    def samples(self, chan):
-        """returns all a2d measurements collected in during measure(chan) & keepers from those,"""
-        (samples, keep) = self.reject_outliers(chan)
-        return (samples, keep)
+#     def samples(self, chan):
+#         """returns all a2d measurements collected in during measure(chan) & keepers from those,"""
+#         (samples, keep) = self.stats(chan)
+#         return (samples, keep)
 
     def process_and_report(self, chan, purpose):
         """Computes stats and rejects outliers, Looks up vb using vm
@@ -153,12 +158,14 @@ class ADC:
         payload returned depends on the purpose..."""
         print(f"in process_and_report  purpose: {purpose} channel: {chan}")
         name = self.names[int(chan)]
+        obj=None
         # TODO: DONE: find out why keep is not included in the obj which becomes the payload in process_and_report(chan, purpose)
         keep, stats = self.stats(chan)
         # print("in process... keep: ", keep)
         vm = stats.vm_mean
         vin = self.vin
-        vb = self.lookup_vb(chan, vm)
+        print(" in process_and_report()  chan: ", chan,  "  vm: ", vm )
+        vb = self.lookup_vb(chan, vm) 
         error = vb - vin
         cfg_id = self.cfg_ids[chan]
         # report depends on the purpose: measure or calibrate
@@ -167,9 +174,11 @@ class ADC:
             obj = {
                 "purpose": 101,
                 "cfg_id": cfg_id,
-                "timestamp": self.datetimestamp(),
+                "timestamp": self.timestamp(),
+                "type": "m",
                 "a2d": stats.a2d_mean,
                 "a2d_sd": stats.sd,
+                "sample_sz": len(keep),
                 "vm": vm,
                 "vb": vb,
                 "vin": vin,                                                   #ignored for meas
@@ -186,11 +195,12 @@ class ADC:
             obj = {
                 "purpose": 201,
                 "cfg_id": cfg_id,
-                "timestamp": self.datetimestamp(),
+                "timestamp": self.timestamp(),
                 "type": "c",
                 "vin": self.vin,
                 "a2d": stats.a2d_mean,
                 "a2d_sd": stats.sd,
+                "sample_sz": len(keep),
                 "vm": vm,
                 "vb": vb,
                 "vin": vin,
@@ -204,20 +214,9 @@ class ADC:
             print(f" reporting back to server: {obj} ")
         return obj
 
-    def reject_outliers(self, chan):
-        """returns two lists: all, keep."""
-        samples = [x for x in self.measurements[chan].a2d]
-        m = sum(samples) / len(samples)
-        var = [(x - m) ** 2 for x in samples]
-        sd = math.sqrt(sum(var) / len(var))
-        if sd > 0:
-            keep = [x for x in samples if abs(x - m) < 1.5 * sd]
-        else:
-            keep = samples
-        return (samples, keep)
 
     def stats(self, channel):
-        """performs stats on all samples, uses sd and mean to reject outliers, returns keep, stats"""
+        """performs stats on all samples, uses sd, mean, and allowance to reject outliers, returns keep, stats"""
         ch = int(channel)
         # get samples and do stats1 on them
         samples = self.measurements[ch].a2d
@@ -226,11 +225,12 @@ class ADC:
         var = [(x - m) ** 2 for x in samples]
         sd = math.sqrt(sum(var) / len(var))
         vin = self.vin
-        # Stats = namedtuple("Stats", ("circuit_name",  "mean", "sd", "sample_period","store_time","gate_time"))                                                                                           #9 fields
+        # Stats = namedtuple("Stats", ("circuit_name",  "sample_sz", "mean", "sd", "sample_period","store_time","gate_time"))                                                                                           #7 fields
 
         theStats = Stats(
             self.names[ch],
             vin,
+            len(samples),
             m,
             m_vm,
             sd,
@@ -239,17 +239,18 @@ class ADC:
             self.gate_time,
         )
         print("theStats1: ", theStats)
-        # If  any  outliers  are discarded, return stats on keepers: a keeper falls within 1.5*sd of mean
-        keep = [x for x in samples if abs(x - m) < 1.5 * sd]
+        # If  any  outliers  are discarded, return stats on keepers: a keeper falls within allowance of mean
+        keep = [x for x in samples if abs(x - m) < theStats.sd ]
         if sd > 0 and len(keep) < len(samples):
             print("keep: ", keep)
             m2 = sum(keep) / len(keep)
             m_vm2 = m2 * self.lsb
             var2 = [(x - m2) ** 2 for x in keep]
             sd2 = math.sqrt(sum(var2) / len(var2))
-            theStats = Stats(
+            theStats2 = Stats(
                 self.names[ch],
                 vin,
+                len(keep),
                 m2,
                 m_vm2,
                 sd2,
@@ -257,8 +258,8 @@ class ADC:
                 self.store_time,
                 self.gate_time,
             )
-            print("theStats2: ", theStats)
-        return (keep, theStats)
+            print("theStats2: ", theStats2)
+        return (keep, theStats2)
 
     def bracket_vm(self, chan, vm):
         """using the lut from channel, bracket vm between two values: loval and hival,
@@ -275,7 +276,7 @@ class ADC:
 
     def interpolate(self, chan, loval, vm, hival):
         """Assumes linearity between sample points, so interpolation should work"""
-        lut = self.luts[chan]
+        lut = json.loads(self.luts[chan])
         rngx = hival - loval
         rngy = lut[hival] - lut[loval]
         pctx = (vm - loval) / rngx
@@ -288,7 +289,10 @@ class ADC:
         """Returns the estimate of vb, channel voltage given measured voltage, vm"""
         # TODO: DONE: put a guard in to prevent asking for a lookup if vm is out of bounds. 7/26/25
         # TODO: Re-calibrate lut0
+        print(" lookup_vb()  luts[0]: ", self.luts[0])
         alutkeys = self.luts[chan].keys()
+        print(f"called lookup_vb() chan: {chan}  vm: {vm}")
+        print(" lookup_vb() lut keys: ", alutkeys)
         lowest = min(alutkeys)
         highest = max(alutkeys)
         v = round(vm, 4)
@@ -329,10 +333,6 @@ class ADC:
 #                         await asyncio.sleep(self.wait_period)     #in seconds 
 #         return res
 #  """
-#  """    following writes lut values to file. Currently Not used for client-socket
-#         datafile = f"lut{chan}.csv"
-#         print("datafile: ", datafile)
-#         with open(datafile, "a") as f:
-#             print(f"{vm}  : { self.vin }")
-#             f.write(f"\r{vm}  : { self.vin },")
-#  """
+
+
+
