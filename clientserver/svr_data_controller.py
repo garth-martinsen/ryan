@@ -5,7 +5,7 @@ import json
 from data_controller_config import Lut_Limits, circuits, MESSAGE_PURPOSES
 from database_interface import DatabaseInterface
 from collections import OrderedDict
-from adc_scheduler import adc_scheduler as ADCS
+from scheduler import Scheduler 
 import asyncio
 
 FORMAT = "utf-8"
@@ -17,12 +17,12 @@ C126_steps= [x/10 for x in range(90,136)]
 #TODONE 1 FIX: removed last line in db_server.py. handle_client:;   conn.close(). Now both sockets remain open  in dict, sockets.
 
 class SvrDataController:
-    def __init__(self, cfg_ids):
+    def __init__(self, cfg_ids, sockets):
         self.cfg_ids = cfg_ids
         self.cfg = []  # cfg will hold 3 channels of dict [0,1,2]
-        self.luts = [ {}, {}, {} ]  # lut will hold 3 Dictionaries: lut42, lut84 and lut126
+        self.luts = [ {}, {}, {} ]  # luts will hold 3 Dictionaries: lut42, lut84 and lut126
         self.lut_limits = {}  # dict {channel: lut_limits} channels are: 0,1,2
-        self.dbi = DatabaseInterface()
+        self.dbi = DatabaseInterface(cfg_ids)
         self.lsb0 = 6.144 / pow(2, 15)  # ~ 187.5 µvolts
         self.lsb1 = 4.095 / pow(2, 15)  # ~ 125 µvolts
         self.steps_per_channel = {0: C42_steps, 1:C84_steps, 2: C126_steps}
@@ -31,12 +31,11 @@ class SvrDataController:
         self.load_config(self.cfg_ids)
         self.messages_for_adc = []
         self.messages_for_gui=[]
-        self.adc_scheduler=ADCS()
+        self.scheduler=Scheduler(sockets, self)
         
     def load_config(self, ids):
         """Loads db records with ids. Converts Luts to {float:float } and sets limits to iteration.
         This method loads Calibrate View."""
-        self.cfg_ids = ids
         self.cfg = self.dbi.load_config(ids)
         for i in range(3):
             self.convert_lut(self.luts[i], i)
@@ -77,8 +76,10 @@ class SvrDataController:
         self.msg_id +=1
         return self.msg_id
     
-    def missing_rqrd_fields(self,msg):
+    def has_rqrd_fields(self,msg):
+        '''All msgs must have three foelds: purpose, sender_id, msg_id. Returns True or False.'''
         p=s=m=True
+        print(f" checking required fields in msg: {msg}")
         if "purpose" not in msg:
             p=False
             print("missing required field: purpose")
@@ -90,14 +91,14 @@ class SvrDataController:
             print("missing required field: msg_id")
         return p and s and m
     
-    def save_measurement(self, msg):
+    async def save_measurement(self, msg):
         """Purpose: save measurement on a channel to the db.
         The db_interface will use msg values for the insert statement.
         The cfg_id will indicate the channel"""
         msg.pop("chan")
         self.dbi.save_measurement(msg)
 
-    def save_calibration(self, msg):
+    async def save_calibration(self, msg):
         """Purpose: call databaseInterface to save info in table: BMS"""
         self.dbi.save_calibration(msg)
 
@@ -114,41 +115,16 @@ class SvrDataController:
             rsp = json.dumps(msg)
             self.messages_for_adc.append(rsp)
             print("messages_for_adc: ", self.messages_for_adc)
-        if purpose ==150 and sender_id == 'gui_client' and conn == gui_socket:
-             #schedule_measurements has to be multi-sends of 100 by the server to the adc_client which will do each triple measurement.
-             wait_secs = int(msg["wait_secs"])
-             reps = int(msg["reps"])
-             self.adc_scheduler.set_wait_period(wait_secs)
-             self.adc_scheduler.set_reps(reps)
-             asyncio.run(self.adc_scheduler.schedule_measurements())
-             #all msgs to adc will be 100s and  responses will be 101s and be sent  by server to gui_client.
-        if purpose ==175 and sender_id == 'gui_client' and conn == gui_socket:
-            # pull measurement_records  from db table BMS.
-            chan = int(msg["chan"])
-            records = self.dbi.list_measurements(chan)
-            obj = {"purpose": 176, "sender_id": "server", "msg_id": self.nextmsgid(), "chan": chan, "records" :records}
-            self.messages_for_gui.append(json.dumps(obj))
-        if purpose ==200 and sender_id == 'gui_client' :
+        if purpose == 200 and sender_id == 'gui_client' :
             #has to be re-sent by the server to the adc_client which will do the calibration and return a 201.
             msg["msg_id"] = self.nextmsgid()
             msg["sender_id"]="server"
             rsp =  json.dumps(msg)
             self.messages_for_adc.append(rsp)
-        if purpose ==250 and sender_id == 'gui_client' and conn == gui_socket:
-            #stepping_calibrations has to be multi-sends of 200 by the server to the adc_client which will do each calibration.
-             wait_secs = int(msg["wait_secs"])
-             chan = msg["chan"]
-             self.adc_scheduler.set_wait_period(wait_secs)
-             asyncio.run(self.adc_scheduler.request_stepping_calibration(chan))
-             #all msgs to adc will be 200s with same chan & diff vin and  responses will be 201s and be sent  by server to gui_client.
-        if purpose ==275 and sender_id == 'gui_client' and conn == gui_socket:
-            # pull calibration_records  from db table BMS.
-             chan = int(msg["chan"])
-             records = self.dbi.list_calibrations(chan)
-             obj = {"purpose": 276, "sender_id": "server", "msg_id": self.nextmsgid(), "chan": chan, "records" :records}
-             self.messages_for_gui.append(json.dumps(obj))
         if purpose ==101 and sender_id == 'adc_client' :
-            #has to be re-sent by the server to the gui_client which will present data .
+            #Save to db then re-send by the server to the gui_client which will present data .
+            print(f" saving msg to BMS table: {msg}")
+            self.save_measurement(msg)
             msg["sender_id"] = "server"
             msg["msg_id"]=self.nextmsgid()
             rsp = json.dumps(msg)
@@ -156,7 +132,8 @@ class SvrDataController:
            # gui_socket.send(json.dumps(msg).encode(FORMAT))
        
         if purpose ==201 and sender_id == 'adc_client' :
-            #has to be re-sent by the server to the gui_client which will present the data .
+            #Save to db then re-send by the server to the gui_client which will present the data .
+            self.save_calibration(msg)
             msg["sender_id"] = "server"
             msg["msg_id"]= self.nextmsgid()
             rsp = json.dumps(msg)
@@ -169,11 +146,11 @@ class SvrDataController:
             rsp = json.dumps(msg)
             self.messages_for_gui.append(rsp)
             return rsp
-        #TODO 3: Fix 300 and 400 to be dealt with as db returns to gui_client. no forwarding...
+        #TODONE 3: Fix 300 and 400 to be dealt with as db returns to gui_client. no forwarding...
     
         
     def send_forwards(self, sockets):
-        # this method pop any msgs  for a socket and sends it.
+        # this method pop any msg  for a socket and send it.
         adc_socket=sockets.get("adc_client", None)
         gui_socket=sockets.get("gui_client",None)
         rsp = None
@@ -192,16 +169,19 @@ class SvrDataController:
         rsp = ''
         if not msg:
             rsp = False
-        if not self.missing_rqrd_fields(msg):
+        print(f" called sdc.handle_message(...) type(msg): {type(msg)}, msg: {msg}")
+        if not self.has_rqrd_fields(msg):
            print( "Error. Message must contain required fields: ")
-           # TODO: decide if should exit or just return
-        purpose = msg["purpose"]
+        purpose = int(msg["purpose"])
         sender_id=msg["sender_id"]
-        msg_id = msg["msg_id"]
+        msg_id = int(msg["msg_id"])
         print(f" purpose: {purpose}  sender: {sender_id}  msg_id: {msg_id}")
+        adc_socket=sockets.get("adc_client", None)
+        gui_socket=sockets.get("gui_client",None)
+
         if purpose == -1:
             rsp = False    #disconnect
-        if purpose in [100,200, 101,201]:
+        if purpose in [100,101, 200,201 ]:
             return self.save_forwards( msg, conn, sockets, purpose, sender_id)
         if purpose == 0:
             obj =  {"purpose": 1, "sender_id": "server", "msg_id": self.nextmsgid(),
@@ -234,26 +214,46 @@ class SvrDataController:
                      "config0": self.cfg[0][:-1], "config1": self.cfg[1][:-1], "config2": self.cfg[2][:-1]}
             rsp = json.dumps(obj)
             #            conn.send(rsp.encode(FORMAT))
-
         if purpose == 50:
             obj = {"purpose": 51, "sender_id": "server", "msg_id": self.nextmsgid(),
                      "status": "Ready for Business"}
             rsp = json.dumps(obj)
-      
-        if purpose ==300 and sender_id == 'gui_client' :   #LUT (chan)
-            #return LUT for channel to gui_client. hence not a forward .
-            msg["sender_id"] = "server"
-            msg["msg_id"]= self.nextmsgid()
-            lut = self.dbi.get_lut(chan)
-            msg["lut"] = lut
-            rsp = json.dumps(msg)
-        if purpose ==400 and sender_id == 'gui_client' :   #LUT (chan)
-            #return LUT for channel to gui_client. hence not a forward .
-            msg["sender_id"] = "server"
-            msg["msg_id"]= self.nextmsgid()
-            keep = self.dbi.get_last_keep(chan)
-            msg["keep"] = keep
-            rsp = json.dumps(msg)            
+        if purpose ==150 and sender_id == 'gui_client' and conn == gui_socket:
+             #schedule_measurements has to be multi-sends of 100 by the server to the adc_client which will do each triple measurement.
+             wait_secs = int(msg["wait_secs"])
+             reps = int(msg["reps"])
+             self.scheduler.set_wait_period(wait_secs)
+             self.scheduler.set_reps(reps)
+             asyncio.run(self.scheduler.schedule_measurements())
+             # tell gui_client that measurements are scheduled and running...
+             rsp=json.dumps({"purpose": 151, "sender_id": "server", "msg_id": self.nextmsgid(),
+                     "status": "Measurements  are scheduled and running..."})
+             #all msgs to adc will be 100s and  responses will be 101s which are saved and forwarded  by server to gui_client.
+        if purpose == 250 and sender_id == 'gui_client' and conn == gui_socket:
+            # do calibrate in 1/10 v steps for vin, on channel, chan. 
+             wait_secs = int(msg["wait_secs"])
+             chan = int(msg["chan"])
+             self.scheduler.set_wait_period(wait_secs)
+             #self.scheduler.set_reps(reps)
+             asyncio.run(self.scheduler.request_stepping_calibration(chan))
+             #tell gui_client that calibrations are running.
+             rsp=json.dumps({"purpose": 251, "sender_id": "server", "msg_id": self.nextmsgid(),
+                     "status": "Calibrations are running..."})
+             # a 201 will arrive at the server every "wait_secs"and will be saved in db and forwarded to to gui_client
+        if purpose ==175 and sender_id == 'gui_client' and conn == gui_socket:
+            # pull measurement_records  from db table BMS and return to sender.
+            chan = int(msg["chan"])
+            records = self.dbi.list_measurements(chan)
+            obj = {"purpose": 176, "sender_id": "server", "msg_id": self.nextmsgid(), "chan": chan, "records" :records}
+            rsp= json.dumps(obj)
+        if purpose ==275 and sender_id == 'gui_client' and conn == gui_socket:
+            # pull calibration_records  from db table BMS and return to sender.
+            chan = int(msg["chan"])
+            records = self.dbi.list_calibrations(chan)
+            obj = {"purpose": 276, "sender_id": "server", "msg_id": self.nextmsgid(), "chan": chan, "records" :records}
+            rsp= json.dumps(obj)
+
+ 
         conn.send(rsp.encode(FORMAT))
         return rsp
     
