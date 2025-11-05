@@ -1,5 +1,5 @@
 # file: gui_client.py    purpose: liason between gui and adc_client thru db_server. runs in python3 env.
-# copied and modified:  https://github.com/juliogema/python-basic-socket/blob/main/client.py
+# copied and modified from:  https://github.com/juliogema/python-basic-socket/blob/main/client.py
 # Notes: For each server response, only one client request can be made eg: on purpose:11 can send request(20)
 # TODO 2: Find out why the request to measure(0) from gui_client causes problems.
 
@@ -26,10 +26,10 @@ DISCONNECT_MESSAGE = json.dumps(
 SERVER = "192.168.254.19"
 ADDR = (SERVER, PORT)
 
-gdc=GuiDataController((1,2,3))
-
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(ADDR)
+
+gdc=GuiDataController((1,2,3), client)
 
 def send(msg):
     #global svr_msgs_cnt, resps_from_svr, rqsts_to_svr
@@ -49,7 +49,7 @@ def send(msg):
         if amsg:
             msg = json.loads(amsg)
             print(f" in gui_client.send.client.recv()  type: {type(msg)} msg: {msg} ")
-            next_msg = gdc.handle_message(msg)
+            next_msg = gdc.handle_message(msg )
             print(f"next_msg: {next_msg}")
             if next_msg:
                 send( next_msg)
@@ -60,8 +60,10 @@ def send(msg):
 # called methods-----
 send(gdc.hi())
 #send(gdc.bye())
-chan=0
-send(gdc.rqst_measure(chan))
+# chan=0
+# send(gdc.schedule_measure(chan))
+# send(gdc.rqst_calibration(chan, 3.6))
+     
 
 
 
