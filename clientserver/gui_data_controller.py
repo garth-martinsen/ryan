@@ -22,7 +22,7 @@ modes=[CONFIGURING,USER_REQUESTING]
 sender_id = "gui_client"
 
 class GuiDataController:
-    def __init__(self, cfg_ids, conn):
+    def __init__(self, cfg_ids):
         self.client_name = "gui_client"
         self.mode = CONFIGURING
         self.cfg_ids = cfg_ids
@@ -38,7 +38,7 @@ class GuiDataController:
         self.msg_id = 6000     #starting msg_id in gui_data_controller...
         self.responses_for_purpose =  OrderedDict()
         self.load_responses()
-        self.conn = conn
+     
 
     def load_responses(self):
         lr=self.responses_for_purpose
