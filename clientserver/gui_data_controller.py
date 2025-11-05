@@ -22,7 +22,7 @@ modes=[CONFIGURING,USER_REQUESTING]
 sender_id = "gui_client"
 
 class GuiDataController:
-    def __init__(self, cfg_ids):
+    def __init__(self, cfg_ids, conn):
         self.client_name = "gui_client"
         self.mode = CONFIGURING
         self.cfg_ids = cfg_ids
@@ -38,6 +38,7 @@ class GuiDataController:
         self.msg_id = 6000     #starting msg_id in gui_data_controller...
         self.responses_for_purpose =  OrderedDict()
         self.load_responses()
+        self.conn = conn
 
     def load_responses(self):
         lr=self.responses_for_purpose
@@ -45,11 +46,11 @@ class GuiDataController:
         lr[11]=  {"purpose": 12, "sender_id": "gui_client", "msg_id": self.nextmsgid()}
         lr[13]=  {"purpose": 14, "sender_id": "gui_client", "msg_id": self.nextmsgid()}
         lr[15] = {"purpose": 50, "sender_id": "gui_client", "msg_id": self.nextmsgid()}
-        lr[51] = {"purpose":100, "sender_id": "gui_client", "msg_id": self.nextmsgid()}
-        lr[101] =  {"purpose": 200, "sender_id": "gui_client", "msg_id": self.nextmsgid()}                 
-        lr[201] =  {"purpose": 150, "sender_id": "gui_client", "msg_id": self.nextmsgid(),"wait_secs": 5, "reps":5}
-        
-        
+#         lr[51] = {"purpose":100, "sender_id": "gui_client", "msg_id": self.nextmsgid()}
+#         lr[101] =  {"purpose": 200, "sender_id": "gui_client", "msg_id": self.nextmsgid()}                 
+#         lr[201] =  {"purpose": 150, "sender_id": "gui_client", "msg_id": self.nextmsgid(),"wait_secs": 5, "reps":5}
+         
+  
     def kill_process(self):
         ''' kills the process with the name: "Python db_server.py"  '''
         import cysignals
@@ -112,14 +113,16 @@ class GuiDataController:
             msgid = msg["msg_id"]
             print ("msg: ",msg, " p: ",purpose, " s: ", sender_id, " m: ",msgid )
         if self.mode == CONFIGURING:
-            return self.configure(msg, purpose)
+            obj = self.configure(msg, purpose)
         if self.mode == USER_REQUESTING:
-            return self.user_requests()
+            obj = self.user_requests()
+        return obj
 
     def configure(self, msg, purpose):
         ''' auto fetch: cfg_ids, luts, configs,READY, then 150(schedule_measures)'''
-        obj = self.responses_for_purpose[purpose]
-        print(f"next msg: {obj}")
+        obj=None
+        if purpose < 50:
+            obj = self.responses_for_purpose[purpose]
         # harvest response data
         if purpose == 1:
             print( f"Recognized and registered with server purpose: {purpose}")
@@ -135,59 +138,47 @@ class GuiDataController:
             self.configs[2]=msg["cfg2"]
             self.luts[2]= self.configs[2][-1]
             self.configs[2]= self.configs[2][:-1]
-        if purpose == 101:
-            print(f" TBD  msg: {msg} ")
-            print("Wait for requests  from FLET GUI to measure, calibrate, schedule, step_calibrate")
-        if purpose == 51:
-            print("status: " ,msg["status"])
-            self.mode=USER_REQUESTING
-            self.status = 'READY'
             self.user_requests()
-        if purpose == 101:
-            print(f"first measurement received: {msg}")
+        if purpose == 51:
+             print("status: " ,msg["status"])
+             self.mode=USER_REQUESTING
+             self.status = 'READY'
         if obj:
             return json.dumps(obj)
 
 #    TODO  8: Figure out how to deal with on demand stuff.
-#    TODONE 8: Added field mode[CONFIGURING| USER_REQUESTING ]. If mode==USER_REQUESTING, then call user_requests to send a msg(...)
+#    TODONE 8: Added field mode[CONFIGURING| USER_REQUESTING ]. If mode==USER_REQUESTING, then call user_requests()
+#     to capture rqrd args and return a dict
 
     def user_requests(self):
-        while True:
-            cmds = input( "commands: ")
-            args = cmds.split(",")
-            purpose = int(args[0])
-            obj=None
-            if purpose == 100:
-                chan = int(args[1])
-                obj=  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan}
-            elif purpose == 200:
-                chan = int(args[1])
-                vin = float(args[2])
-                obj=  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan, "vin": vin }
-            elif purpose == 150:
-                wait_secs = int(args[1])
-                reps =int(args[2])
-                obj=  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "wait_secs": wait_secs, "reps": reps }
-            elif purpose == 175:
-                chan = int(args[1])
-                obj=  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan }
-            elif purpose == 250:
-                wait_secs = int(args[1])
-                chan =int(args[2])
-                obj =  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(),
-                       "wait_secs": wait_secs, "chan": chan }
-            elif purpose == 275:
-                chan = int(args[1])
-                obj =  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan }
-            elif purpose == 300:   #LUT
-                chan = int(args[1])
-                obj =  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan }
-            elif purpose == 400:   # Keep
-                chan = int(args[1])
-                obj =  {"purpose": purpose, "sender_id": "gui_client", "msg_id": self.nextmsgid(), "chan": chan }
-            print(obj)
-            return json.dumps(obj)
-
+        ''' uses input to capture user inputs, create a dict  and return it as a string'''
+        purpose = int(input( "purpose: "))
+        obj=None
+        if purpose == 100:
+            chan = int (input("chan: "))
+            obj=  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(), "chan": chan}
+        elif purpose == 200:
+            chan = int (input("chan: "))
+            vin = float(input("vin: "))
+            obj=  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(), "chan": chan, "vin": vin }
+        elif purpose == 150:  #schedule measurements
+            wait_secs = int(input("wait_secs: "))
+            reps =int(input("repetitions: "))
+            obj=  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(), "wait_secs": wait_secs, "reps": reps }
+        elif purpose == 175:       # fetch meas records
+            chan = int(input("chan: "))
+            obj=  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(), "chan": chan }
+        elif purpose == 250:   #stepping calibs
+            wait_secs = int(input("wait_secs: "))
+            chan = int (input("chan: "))
+            obj =  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(),
+                   "wait_secs": wait_secs, "chan": chan }
+        elif purpose == 275:   # fetch calib records
+            chan = int (input("chan: "))
+            obj =  {"purpose": purpose, "sender_id": sender_id, "msg_id": self.nextmsgid(), "chan": chan }
+        print(f" user_requests() . line 178 obj: {obj}")
+        return json.dumps(obj)
+        
     def has_rqrd_fields(self, msg):
         '''Every message must have 3 fields: purpose, sender_id, and msg_id, then other fields as needed.'''
         p=s=m=True
@@ -263,7 +254,7 @@ class GuiDataController:
          '''Schedules repeating measurements on all three circuits. Results saved to db table BMS.
          Wait time is seconds between measurement action,reps is number of repetitions.'''
          print(f"Schedule Measurements every {wait_secs} for {reps} repetitions ")
-         obj = {"purpose": 300, "sender_id": "gui_client",  "msg_id": self.nextmsgid(),
+         obj = {"purpose":150, "sender_id": "gui_client",  "msg_id": self.nextmsgid(),
                 "wait_time": wait_secs, "reps": reps}
          msg= json.dumps(obj)
          return msg
@@ -272,7 +263,7 @@ class GuiDataController:
          '''One-tenth volt steps of vin on channel, chan. Saves vin and vm to db table BMS.
          User has wait_secs to set input voltage on adjustable power supply, before msg is sent.'''
          print(f"Step through vin in 1/10 volt increments on channel: {chan} ")
-         obj = {"purpose": 300, "sender_id": "gui_client",  "msg_id": self.nextmsgid(),
+         obj = {"purpose": 250, "sender_id": "gui_client",  "msg_id": self.nextmsgid(),
                 "wait_time": wait_secs, "reps": reps}
          msg= json.dumps(obj)
          return msg
