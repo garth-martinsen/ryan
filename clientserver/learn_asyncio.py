@@ -10,7 +10,8 @@ class myscheduler:
        the msgs to the adc_client to make measurments and calibrations. To set up repeating measurements
        , the GUI must set wait_period and reps first. For a channel calibration, the Gui must also set the
        wait_period, the time between the different steps in vin (eg: 3 seconds) to allow for the
-       power supply voltage to be set and accurately measured (vin).  '''
+       power supply voltage to be set and accurately measured (vin). To run an async function use:
+       asyncio.run(ms.request_stepping_calibration(0))  or asyncio.run(ms.schedule_measurements())'''
     def __init__(self):
         self.wait_period=0     # user sets it to number of secs to wait before repeating.
         self.reps = -1             # user sets it to a finite number, may be a very large number.
@@ -35,14 +36,14 @@ class myscheduler:
     async def request_measure(self, chan):
         '''single-shot measurement on a channel. it is complete when self.responses boolean is set'''
         self.responses[chan]=False
-        obj = {"purpose" : "100", "chan" : chan}
+        obj = {"purpose" : "100", "sender_id": "server", "chan" : chan}
         msg= json.dumps(obj)
         #server.send(msg)
         print(f"send server msg: {msg} ")
         self.requests[chan]=msg
         while not self.responses[chan]:
             #simulate wait for server response...
-            await asyncio.sleep(3)  
+            await asyncio.sleep(1)  
         #simulate response msg from server
             self.responses[chan]=measurement[chan]
         print(f"measurement from adc: {measurement[chan]} ")
@@ -70,15 +71,19 @@ class myscheduler:
         return
 
             
-    async def request_periodic_measure(self):
+    async def schedule_measurements(self):
         '''Repeating sequence of tasks: m(0), m(1), m(2), wait. where wait is in seconds and set by user.
         Measure all three channels in order, then sleep for waitTime , then repeat for self.reps.
         A measurement is complete when the server responds with the result.'''
         for n in range(self.reps):
+            print()
             print(f"Running set {n+1} ")
             await self.request_measure(0)
+            print()
             await self.request_measure(1)
+            print()
             await self.request_measure(2)
+            print()
             print(f" now: ===== {self.timestamp()}========")
             await self.wait_for_next_set()
         print(f" All Done with {self.reps} sets. Waiting {self.wait_period} seconds between sets! " )
@@ -89,9 +94,10 @@ class myscheduler:
         reps is not used...'''
         steps = steps_per_channel[chan]
         for vin in steps:
+            print(f" now: ===== {self.timestamp()}========")
             print(vin)
             await self.request_calibrate(chan, vin)
             await self.wait_for_next_set()
-        print(f" All Done calibrating channel {chan} in {steps} steps. \
+        print(f" All Done calibrating channel {chan} in steps: {steps} . \
                 Set wait_period higher if you need more time to set power supply. It is now at:  {self.wait_period} ")
         
