@@ -10,10 +10,10 @@ CONFIG_FIELDS =    (
         "owner",
         "app_id",
         "app_desc",
-        "channel_id",
-        "channel_description",
+        "chan_id",
+        "chan_desc",
         "version_id",
-        "version_description",
+        "version_desc",
         "creation_time",
         "mosfet",
         "mosfet_type",
@@ -26,33 +26,15 @@ CONFIG_FIELDS =    (
         "rg",
         "LUT_CALIBRATED",
         "LUT",
-    )
-Config = namedtuple( "Config", CONFIG_FIELDS)
-
-Short_Record = namedtuple( "Short_Record", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))
-
-BMS_FIELDS=(
-        "id",
-        "cfg_id",
-        "type",
-        "timestamp",
-        "a2d_mean",
-        "a2d_sd",
-        "sample_sz",
-        "vm",
-        "vb",
-        "vin",
-        "error",
-        "keep",
-        "sample_period",
-        "store_time",
-        "gate_time",
+        "LUT_TS"
     )
 
-BMS = namedtuple( "BMS", BMS_FIELDS)
+Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #21 fields
+
+Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
+
+BMS = namedtuple("BMS", ('id', 'timestamp', 'type', 'chan',  'cfg_id', 'a2d',  'a2d_sd', 'sample_sz',  'vin','vm', 'vb',  'error', 'store_time', 'gate_time', 'sample_period',  'keep') )   #16 fields
 
 db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
-# Schema CONFIG: CREATE TABLE CONFIG (ID INTEGER PRIMARY KEY , channel_id integer,CHANNEL_DESC VARCHAR  VERSION_ID INTEGER NOT NULL, VERSION_DESC VARCHAR,  TIMESTAMP INTEGER,  MOSFET_ID INTEGER, MOSFET_TYPE VARCHAR, TEMPC REAL, R1 REAL, R2 REAL, RP REAL, RG REAL, LUT_CALIBRATED INTEGER, LUT VARCHAR);
-# Schema BMS: CREATE TABLE BMS ( id integer primary key, cfg_id integer, timestamp integer,  a2d real, a2d_sd real, vm real, vb real, keep varchar, sample_period real, store_time real, gate_time real );
-# example BMS: 1,1,1750436348, 20005.34, 2.123, 2.111, 3.465,[20045,20046,20047,...],0.00156,0.000444,1.003
+
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
