@@ -10,9 +10,9 @@ CONFIG_FIELDS =    (
         "owner",
         "app_id",
         "app_desc",
-        "chan_id",
+        "chan",
         "chan_desc",
-        "version_id",
+        "version",
         "version_desc",
         "creation_time",
         "mosfet",
@@ -35,6 +35,8 @@ Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "chann
 
 BMS = namedtuple("BMS", ('id', 'timestamp', 'type', 'chan',  'cfg_id', 'a2d',  'a2d_sd', 'sample_sz',  'vin','vm', 'vb',  'error', 'store_time', 'gate_time', 'sample_period',  'keep') )   #16 fields
 
+LUT_INFO =namedtuple("LUT_INFO", ("LUT", "LUT_TS") )
+               
 db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
 
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
