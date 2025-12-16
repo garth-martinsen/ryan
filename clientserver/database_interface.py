@@ -1,13 +1,13 @@
 # file: database_interface.py. path: .../DEV/.../data
-"""This class will retrieve and store information for the DataController which supplies info to the GUIs.
+"""This class will retrieve and store in formation for the DataController which supplies info to the GUIs.
 Transactions are used when writing to the db. Each fetch method will include the tuple_factory to be
-used to convert the row values to a namedtuple: one of: [_short_namedtuple_factory, _config_namedtuple_factory]
+used to convert the row values to a namedtuple: one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory, _BMS_namedtuple_factory,_LUT_namedtuple_factory
 """
 import sqlite3
 import time
 # import json
-from database_interface_config import db_path, Config, Short_Record, BMS
-
+from database_interface_config import db_path, Config, Abbrev, BMS, LUT_INFO
+from collections import OrderedDict
 
 class DatabaseInterface:
     def __init__(self, cfg_ids):
@@ -16,33 +16,35 @@ class DatabaseInterface:
         print(f"dbpath: {self.db_path} ")
         print(f"cfg_ids: {self.cfg_ids} ")
 
-    def timestamp(self):
+    def _timestamp(self):
         """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
         dt = time.localtime()
         return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
 
-    def _short_namedtuple_factory(self, cursor, row):
-        """Returns row as a Short_Record:
-        Short_Record = namedtuple("Short_Record",("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))
+    def _Abbrev_namedtuple_factory(self, cursor, row):
+        """Returns row as a Abbrev_Record:
+        Abbrev = namedtuple("Abbrev",("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))
         """
-        return Short_Record(*row)
+        return Abbrev(*row)
 
-    def _bms_namedtuple_factory(self, cursor, row):
+    def _BMS_namedtuple_factory(self, cursor, row):
         return BMS(*row)
 
-    def _config_namedtuple_factory(self, cursor, row):
+    def _LUT_namedtuple_factory(self, cursor, row):
+        return LUT_INFO(*row)
+
+    def _Config_namedtuple_factory(self, cursor, row):
         """Returns row as a  Config:
-        Config = namedtuple("Config", ("id", "owner", "app_id", "app_desc", "channel_id", "channel_description","version_id","version_description", "creation_time","mosfet",                "mosfet_type" ,"tempC", "r1","r2","rp","rg","LUT_CALIBRATED", "LUT") )
+        Config = namedtuple("Config", ("id", "owner", "app_id", "app_desc", "channel_id", "channel_description","version_id","version_description", "creation_time","mosfet", "mosfet_type" ,"tempC", "r1","r2","rp","rg","LUT_CALIBRATED", "LUT") )
         """
         return Config(*row)
     
-    def create_cols_vals(self, msg):
+    def _create_cols_vals(self, msg):
         '''Removes purpose, Returns two lists with column names (cols) and values (vals).'''
-        # db table BMS has no column 'purpose' . ' type'  is used to reflect calibration instead. remove 'purpose' by pop
+        # db table BMS has no column 'purpose' . ' type'  is used to reflect measurment/calibration instead. remove 'purpose' by pop
         msg.pop('purpose')
         msg.pop("sender_id")
         msg.pop("msg_id")
-        msg.pop("chan")
         cols=[]
         vals=[]
         for k,v in msg.items():
@@ -52,11 +54,11 @@ class DatabaseInterface:
 
     def list_all_choices(self):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
-        For now it is: _short_namedtuple_factory"""
+        For now it is: _Abbrev_namedtuple_factory"""
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        self.cx.row_factory = self._short_namedtuple_factory
+        self.cx.row_factory = self._Abbrev_namedtuple_factory
         select_str = "SELECT id, owner, app_desc, channel_id, channel_desc, version_desc  FROM CONFIG order by owner and channel_id;"
         records = []
         for row in cu.execute(select_str):
@@ -64,32 +66,30 @@ class DatabaseInterface:
         # print("records: ", records)
         return records
 
+    # TODO 5: Fix error in Config when rows are selected: Config.__new__() takes 21 positional arguments but 22 were given
     def load_config(self, ids):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
-        For this select, it is one of: [_short_namedtuple_factory, _config_namedtuple_factory,...]
+        For this select, it is one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory,BMS]...TBD
         """
         cfg = []
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
-        self.cx.row_factory = self._config_namedtuple_factory
+        self.cx.row_factory = self._Config_namedtuple_factory
         cu = self.cx.cursor()
-        select_str = f"SELECT * FROM CONFIG where  id in {(ids)} ORDER BY CHANNEL_ID;"
+        select_str = f"SELECT * FROM CONFIG where  id in {(ids)} ORDER BY CHAN;"
         print("select_str: ", select_str)
         # Each row is a channel.
         for row in cu.execute(select_str):
-            # print("row: ", row)
+            #print("row: ", row)
             cfg.append(row)
         return cfg
 
-    def create_next_version_records(self):
-        """Creates  new records which will store a new version of  LUT for each channel. TBD"""
+    #TODO 3 : Implement save_confit(...) 
+    def save_config(self, cfg_id:int, msg:Config):
+        '''TBD... handles next version'''
         pass
 
-    def save_config(self):
-        '''TBD'''
-        pass
-
-    def format_insert(self, insert_str):
+    def _format_insert(self, insert_str):
         """quotes the keep list."""
         insert_str = insert_str.replace("[", "'[")
         insert_str = insert_str.replace("]", "]'")
@@ -99,31 +99,37 @@ class DatabaseInterface:
         """Use the values in msg to populate values in insert statement."""
         # msg is a dict for Battery Management System (bms) . it is from the client
         # print("Called dbi.save_measurement(). Saving msg to database...", bms)
-        # TODO:Make sure that transaction is not needed in BMS save.
         # create correct insert_str:  stringify keep, end with semicolon, ;.
         print(f" save_measurement(...) li 109 type (msg): {type(msg)}  msg: {msg} ")
         msg["type"] = "m"
-        ts = self.timestamp()
+        ts = self._timestamp()
         msg["timestamp"] = ts
-        cols, vals = self.create_cols_vals(msg)
+        cols, vals = self._create_cols_vals(msg)
         print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
         insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "
-        insert_str = self.format_insert(insert_str)
+        insert_str = self._format_insert(insert_str)
+        print(f" insert_str: {insert_str}")
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
         cu.execute(insert_str)
+        self.cx.commit()
 
     def save_calibration(self, msg):
         """saves all in the BMS table. the type column will show 'c'"""
         msg["type"] = "c"
-        cols, vals = self.create_cols_vals(msg)
+        ts = self._timestamp()
+        msg["timestamp"] = ts
+        cols, vals = self._create_cols_vals(msg)
+        print(f" cols: {cols} vals: {vals}")
         insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}  "
-        insert_str = self.format_insert(insert_str)
+        print(f" insert str: {insert_str}")
+        insert_str = self._format_insert(insert_str)
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
         cu.execute(insert_str)
+        self.cx.commit()
 
     def list_measurements(self, chan):
         ''' Returns a list<records>. cfg_id is one of cfg_ids '''
@@ -132,6 +138,7 @@ class DatabaseInterface:
         select_str = " Select * from BMS where type = 'm' and cfg_id = cfg_id "
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
+        self.cx.row_factory = self._BMS_namedtuple_factory
         cu = self.cx.cursor()
         for row in cu.execute(select_str):
             records.append(row)
@@ -141,34 +148,41 @@ class DatabaseInterface:
         records = []
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
-        self.cx.row_factory = self._bms_namedtuple_factory
+        self.cx.row_factory = self._BMS_namedtuple_factory
         cu = self.cx.cursor()
-        select_str = "SELECT  *  from BMS where type = 'c' ;"
+        #select_str = "SELECT  id, cfg_id ,type ,chan , timestamp , sample_sz ,  a2d , a2d_sd , vm , vb , vin , error ,  sample_period , store_time , gate_time, keep  from BMS where type = 'c' ;"
+        select_str = "SELECT * from BMS where type = 'c' ;"
         #print("select_str: ", select_str)
         # Each row is a record.
         for row in cu.execute(select_str):
             # print("row: ", row)
             records.append(row)
         return records
-
-
-
-    #     def store_lut(self, lut_json, channel_id, version_id, version_desc):
-    #         '''Stores a new record in config table. values are for whole row but some are replaced with new info'''
-    #         #TODO: Needs testing...
-    #         columns= tuple(Columns)
-    #         values=[self.cfg]
-    #         values[1]=version_id
-    #         values[2]=version_desc
-    #         values[4]=channel_id
-    #         values[5]=int(time.time())
-    #         values[12]=lut_json
-    #         values=tuple(values)
-    #         print(columns, values)
-    #         insert_str =f"INSERT INTO CONFIG {Columns}{values}"
-    #         print("insert_str: ", insert_str)
-    #         self.cu.execute("begin")
-    #         self.cu.execute(insert_str)
-    #         self.cu.execute("commit")
-    # TODO 1: Problem: db is locked when I go to cli to check the results. # TODO 1: Fixed! use transaction .
-
+     
+    def get_lut(self, chan):
+        records=[]
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        self.cx.row_factory = self._LUT_namedtuple_factory
+        cu = self.cx.cursor()
+        select_str = f"SELECT LUT, LUT_TS FROM CONFIG where  chan = {chan};"
+        print("select_str: ", select_str)
+        for row in cu.execute(select_str):
+            records.append(row)
+        return records
+         
+     #TODO 2: Implement and Test update_lut(...)
+    #TODO 4: Add lut_timestamp to Config table, so a new LUT will be datetimestamped without changing the config timestamp.
+    def update_lut(self, msg):
+        '''TBD... msg will hold lut,  id'''
+        chan=msg["chan"]
+        lut = str(msg["LUT"])
+        ts = self._timestamp()
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        cu = self.cx.cursor()
+        update_str = f" UPDATE Config  set lut_ts ='{ts}', LUT='{lut }' where chan ={chan} ;"
+        print("update_str: ", update_str)
+        cu.execute(update_str)
+        self.cx.commit()
+    
