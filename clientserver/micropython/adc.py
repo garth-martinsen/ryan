@@ -45,7 +45,8 @@ class ADC:
         self._initialize_gates()  # all gates set to high which stops all current flow
         self.first_sample = True
         self.lsb = 0  # set in the measurement method depending on channel
-        self.luts: [OrderedDict, OrderedDict, OrderedDict] = [OrderedDict(), OrderedDict(), OrderedDict()]
+       # self.luts: [OrderedDict, OrderedDict, OrderedDict] = [OrderedDict(), OrderedDict(), OrderedDict()]
+        self.luts: [OrderedDict, OrderedDict, OrderedDict] = [{},{},{}]
         self.cfg_ids = ()
         self.configs = [[], [], []]
         self.vin = -99  # set in calibrate(...) else remains -99
@@ -307,10 +308,10 @@ class ADC:
   
     '''
     async def schedule_measurements(self) :
-        '''TBD'''
+        print(''TBD'')
         print("called adc.schedule_measureents()")
     
     async def step_calibrate(self) :
-        '''TBD'''
+        print(''TBD'')
         print("called adc.step_calibrate(...)")
     '''
