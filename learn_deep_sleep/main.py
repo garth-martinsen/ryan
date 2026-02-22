@@ -44,7 +44,7 @@ def main():
     print("Will sleep normally for 3 seconds")
     sleep(3)
     print("3 seconds of normal sleep have passed.Measuring 4V,8V,12V channels, Sending results to db, Saving mean and sd to rtc.memory... ")
-    reps = int(ary[0])+1
+    # set the timer for deepsleep wakeup.
     ms= 3600000
 #     ms = int(input("Input timer in milliseconds: " ))
     print(f"Going into deepsleep for {ms} milliseconds")
