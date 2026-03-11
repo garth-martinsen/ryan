@@ -1,6 +1,7 @@
 #file: create LUT table insert statements
 
 from collections import OrderedDict
+import time
 
 
 class SqlWorker:
@@ -15,6 +16,12 @@ class SqlWorker:
     def __init__(self):
         self.table = 'LUTS'
         self.luts= [OrderedDict(),OrderedDict(),OrderedDict()]
+        
+    
+    def _timestamp(self):
+        """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
+        dt = time.localtime()
+        return f"{dt[0]}-{dt[1]}-{dt[2]}_{dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
         
     def make_inserts(self, table, app_id, chan, vm0, vin_min, vin_max):
         '''Creates statements that can be copy-pasted into sqlite CLI to insert records into LUTS table.
@@ -62,19 +69,29 @@ class SqlWorker:
         return od
 
     def lookup_chan_vm(self,  chan, vm):
-        '''Given any legitimate value for vm (measured voltage) in a channel, chan,  return the estimate of vb (battery voltage), using interpolation'''
+        '''Given any legitimate value for vm (measured voltage) in a channel, chan,  return the estimate of vb (battery voltage), using interpolation.
+           First  if vm is == to a boundary returns lut.value, then if not out of bounds, interpolates vm to yield vb '''
         #  bracket vm with vlo and vhi
         lut=self.luts[chan]
         minkey=10
         maxkey=-10
-        for k in lut.keys():
+        minval=15
+        maxval=-15
+        for k,v in lut.items():
             minkey=min(minkey, k)
             maxkey=max(maxkey,k)
-        print( "bounds: " ,minkey, maxkey)
-        if vm < minkey or vm >= maxkey:
-            print( f" vm is out of bounds. violates: {minkey} <=  vm: {vm}  < {maxkey}. ")
+            minval= min(minval,v)
+            maxval=max(maxval,v)
+        print( f"\t bounds for chan { chan} : {minkey} , {maxkey} maps to: {minval} , {maxval}")
+        # if vm is on a boundary , return lut(vm)
+        if vm==minkey or vm==maxkey:
+            return lut[vm]
+        # if out of bounds return error statement
+        elif vm < minkey or vm >= maxkey:
+            return f" \t Error: vm is out of bounds. violates: {minkey} <=  vm: {vm}  < {maxkey}. "
         else:
-            print(f"Vm is in range.: {minkey}  <=  {vm}  <=  {maxkey}")
+            #  if inside boundaries, find keys that bracket vm
+            print(f"\tvm is in range.: {minkey}  <=  {vm}  <  {maxkey} ... OK")
             vhi=-1
             vlo=10
             for k,v in lut.items():
@@ -83,9 +100,8 @@ class SqlWorker:
                     break    # important! w/o break vhi will run all the way to highest vm in od.
                 else:
                     vlo=k
-
-            # interpolate using vlo,vhi, vm
-            print(f"vlo: {vlo} vm: {vm}  vhi: {vhi}")
+            # then interpolate using vlo,vhi, vm
+            print(f"\tvlo: {vlo} vm: {vm}  vhi: {vhi}")
             rvm = vhi - vlo
             fract=(vm-vlo)/rvm
             vbhi=lut[vhi]
@@ -94,6 +110,19 @@ class SqlWorker:
             # print(f"interpolated value for {vm} is {vb}")
             return vb
             
-                
+sw=SqlWorker()
+#populates the self.luts
+sw.make_inserts('LUTS', 1, 0, 2.0, 30,   46)
+sw.make_inserts('LUTS', 1, 1, 2.0, 60,   91)
+sw.make_inserts('LUTS', 1, 2, 2.0, 90, 136)
+print("For: sw.lookup_chan_vm(0,2.345):")
+print("\t", sw.lookup_chan_vm(0,2.345))
+print("For: sw.lookup_chan_vm(1,2.345):")
+print("\t", sw.lookup_chan_vm(1,2.345))
+print("For: sw.lookup_chan_vm(2,2.345):")
+print("\t", sw.lookup_chan_vm(2,2.345))
+
+
+
                 
     
