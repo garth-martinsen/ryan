@@ -72,7 +72,7 @@ class SqlWorker:
             maxkey=max(maxkey,k)
         print( "bounds: " ,minkey, maxkey)
         if vm < minkey or vm >= maxkey:
-            print( f"Vm is out of bounds.  lower bound: {minkey}  vm: {vm}  upper bound: {maxkey}. Find your error...")
+            print( f" vm is out of bounds. violates: {minkey} <=  vm: {vm}  < {maxkey}. ")
         else:
             print(f"Vm is in range.: {minkey}  <=  {vm}  <=  {maxkey}")
             vhi=-1
