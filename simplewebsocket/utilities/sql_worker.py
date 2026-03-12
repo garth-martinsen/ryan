@@ -11,7 +11,9 @@ class SqlWorker:
      example: sw.make_inserts('LUTS', 1, 1,2.0, 0.0667, 60, 91) generates 31 statements
      example:sw.make_inserts('LUTS', 1, 2,2.0,  0.04255, 90, 136) generates 46 statements
      Calibration will correct the vm values to close to the same as generated values. It should be noted that the keys in the luts never
-     exceed the FSR of 4.095V '''
+     exceed the FSR of 4.095V
+     Usage: measure your r1 and r2 on each circuit. Compute the fraction = r2/(r1+r2) and place it in the
+     vm_k variables in the make_inserts(...) method. the vm_k values should approximbate 2/3, 1/3, 1/4'''
     
     def __init__(self):
         self.table = 'LUTS'
@@ -32,11 +34,11 @@ class SqlWorker:
         cnt =0
         vm_k = 0
         if chan == 0 :
-            vm_k=2/3
+            vm_k=0.688128140703518    # from circuit 0 voltage divider:  r1= 99.3k and r2=219.1k
         elif chan == 1:
-            vm_k = 1/3
+             vm_k = 0.313249211356467  # from circuit 1 voltage divider: r1=99.3k and r2 = 217.7k
         elif chan == 2:
-            vm_k= 1/4
+            vm_k= 0.248189762796504  # from circuit 2  r1= 301.1k  r2=99.4k  voltage divider
             
         for v in range(vin_min,vin_max):
             vin = v/10
