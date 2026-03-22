@@ -22,45 +22,56 @@ CONFIG_FIELDS =    (
         "r1",
         "r2",
         "LUT_CALIBRATED",
-        "LUT_TS"
+        "LUT_TS",
+        "VD_FRACT"
     )
 
 Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #17 fields
 
 Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
-
+# CREATE TABLE BMS ( id integer primary key, timestamp varchar, type varchar,chan integer, a2d real, vm real, vm_sd real,  vb real, sample_period real, store_time real, gate_time real, vin real, error real);
 # fields 0 -6 populated by ADC ,  fields 7-11 populated by calculations by (gui_client or databaseInterface)
 BMS_FIELDS = (
     'id',
     'timestamp',
     'type',
     'chan',
-    'vin',
-    'store_time',
-    'sample_period',
-    'a2d_mean',
-    'a2d_sd',
-    'vm',
-    'vb',
+    'FSR',
+    'LSB',
+     'vin',
     'error',
+    'a2d',
+    'vm',
+    'vm_sd',
+    'vb',
+    'samples'
 )
 
-BMS = namedtuple("BMS", BMS_FIELDS )   #12 fields
+#  from 3/14/26 21:34   BMS = namedtuple("BMS",("id","timestamp","type","chan","sample_period","store_time","gate_time","vin","error","a2d","vm","vm_sd","vb","samples"))
+
+
+BMS = namedtuple("BMS", BMS_FIELDS )   #13 fields
 
 LUT =namedtuple("LUT", ("vm", "vin") )
-               
+
+Stats=namedtuple("Stats",("a2d","vm","vm_sd","vb"))
+
 #db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
 db_path = '/Users/garth/DEV/ryan/simplewebsocket/data/rt_db'
 
 #message purposes: note that responses from the db or adc will have 1 added eg : 100 -> 101 etc.
 purposes = dict()
-purposes[100]='request_measure'
+purposes[100]='request_measure'                      #all chans 
 purposes[101]='response_measurement'
-purposes[150]= 'past_measurements_0'
-purposes[152]= 'past_measurements_1'
-purposes[154]= 'past_measurements_2'
-purposes[200]='request_calibrate'
+purposes[150]= 'past_measurements_0'            #chan 0
+purposes[152]= 'past_measurements_1'           #chan 1
+purposes[154]= 'past_measurements_2'           #chan 2
+purposes[200]='request_calibrate_0'
 purposes[201]='response_calibration'
+purposes[202]='request_calibrate_1'
+purposes[203]='response_calibration_1'
+purposes[204]='request_calibrate_1'
+purposes[205]='response_calibration_2'
 purposes[250]='request_past_calibrations_0'
 purposes[252]='request_past_calibrations_1'
 purposes[254]='request_past_calibrations_2'
@@ -83,3 +94,4 @@ purposes[375]= 'response_lut2_timestamp'
 
 
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
+# BMS join A2D example: select * from BMS bms join A2D a2d on bms.id= a2d.bms_id;   note: first two fields of A2D should be ignored: (id and bms_id)
