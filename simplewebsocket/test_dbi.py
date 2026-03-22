@@ -3,7 +3,7 @@
 from database_interface import DatabaseInterface
 from database_interface_config import Config, LUT, BMS
 from dbi_records import  configs,  bms
-from lut_convert import LutConvert as LC
+#from lut_convert import LutConvert as LC
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -14,7 +14,7 @@ samps = '[21357, 21354, 21351, 21353, 21355, 21357, 21351, 21357, 21351, 21355, 
 21355, 21356, 21358, 21357, 21356, 21357, 21352, 21353]'
 
 dbi = DatabaseInterface(app_id)
-lc=LC()
+#lc=LC()
 #bms_fields:        'id',      'timestamp',             'type', 'chan', 'FSR', 'LSB', 'vin', 'error', 'a2d', 'vm', 'vm_sd', 'vb', 'samples')
 start_msg=  {'purpose':101, 'timestamp': '2026-2-23  15:31:21.54',  'type': 'm', 'chan': 1, "FSR": 4.095, "LSB":0.00012496948,"vin": 8.5256,"samples":  '[21357, \
 21354, 21351, 21353, 21355, 21357, 21351, 21357, 21351, 21355, 21357, 21353, 21356, 21358, 21356, 21358, 21357, 21355, \
