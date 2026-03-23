@@ -204,7 +204,7 @@ class Test_DBI:
     def test_list_measures(self):
         print("===================")
         print("testing list_measures()")
-        records = dbi.list_measurements(0)
+        records = dbi.list_measurements(1)
         lenm=len(records)
         if lenm < 1:
             print( "no records")
@@ -277,6 +277,8 @@ class Test_DBI:
     def test_lut_limits(self):
         '''If a vm is within 1/2 of a vm step, then use the key at that end of the lut'''
         chan = 0
+        print("===================")
+        print("Testing Lut Limits... chan 0")
         vd_fract = 0.688128140703518  # from config record for chan 0
         vin_step = 0.1                               # every 0.1v is next vin
         vm_lo = 2.0644 - vd_fract *vin_step/2     # vm for lowest vin, 3.0V
@@ -286,28 +288,28 @@ class Test_DBI:
         ok_lo_vm = vm_lo   
         ok_hi_vm = vm_hi 
         eps = 1e-6
-        print(" for vm= ok_lo_vm")
+        print(f" for vm= ok_lo_vm = {ok_lo_vm}")
         vm,lut = dbi.matchesboundary(chan, ok_lo_vm + .0003)
         if vm is not None:
             print("vm: " , vm)
             assert abs(vm - 2.0644) < eps, "vm is incorrect. "
-        print(" for vm= ok_hi_vm")
+        print(f" for vm= ok_hi_vm = {ok_hi_vm}")
         vm, lut = dbi.matchesboundary(chan, ok_hi_vm - 0.0003 )
         print("vm: ", vm)
         if vm is not None:
             print("vm: " , vm)
             assert abs(vm - 3.0966 ) < eps,  "vm is incorrect. "
-        print(" for vm= too_low_vm")
+        print(f" for vm= too_low_vm = {too_low_vm}")
         vm , lut = dbi.matchesboundary(chan, too_low_vm )
         print("vm: ", vm)
         assert vm == None, " vm should be None "
-        print(" for vm= too_hi_vm ")
+        print(f" for vm= too_hi_vm= {too_hi_vm} ")
         vm , lut = dbi.matchesboundary(chan, too_hi_vm )
         print("vm: ", vm)
         assert vm == None, " vm should be None "
         print()
         print("Passed")
-        
+         
 testdbi=Test_DBI()
 #start_msg is defined near line 18
 testdbi.test_get_lut0(0)
