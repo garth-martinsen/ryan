@@ -5,7 +5,7 @@ from websockets.asyncio.server import serve
 from   database_interface  import DatabaseInterface as DBI
 from message_cfg import  msr_samples, clb_samples
 
-dbi=DBI((1,2,3))
+dbi=DBI(1)
 
 async def echo(websocket):
     async for message in websocket:
