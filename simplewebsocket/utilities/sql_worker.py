@@ -1,15 +1,18 @@
 #file: create LUT table insert statements
+#and move records to a new table with new schema...
+#file: create LUT table insert statements
 
 from collections import OrderedDict
 import time
-
+from worker_named_tuples import Config_fields , cfg1, Config_fields2,cfg2
 
 class SqlWorker:
-    '''this class was created to populate the LUT for channel 0,1,2 for a project_id. The LUT can be later, updated during calibration.
-     The three examples below will create 100 records in the luts table, all starting with vm = 2.0 V and ending with vm < 4.095V:
-     example: sw=SqlWorker();   sw.make_inserts('LUTS', 1, 0, 2.0, 0.095, 30, 46)  generates 16 insert statements for channel 0
-     example: sw.make_inserts('LUTS', 1, 1,2.0, 0.0667, 60, 91) generates 31 statements
-     example:sw.make_inserts('LUTS', 1, 2,2.0,  0.04255, 90, 136) generates 46 statements
+    '''this class was created to populate the LUTs table for channel 0,1,2 for a project_id. The LUT can be later, updated during calibration.
+     The three examples below will create 93  records in the luts table after you have emptied the LUTS table for that app_id 
+     example: sw=SqlWorker();
+     sw.make_inserts('LUTS', 1, 0,  30, 46)                  generates 16 insert statements for chan 0
+     example: sw.make_inserts('LUTS', 1, 1, 60, 91)   generates 31 insert statements for chan 1
+     example:sw.make_inserts('LUTS', 1,  2, 90, 136) generates 46 insert statements for chan 2
      Calibration will correct the vm values to close to the same as generated values. It should be noted that the keys in the luts never
      exceed the FSR of 4.095V
      Usage: measure your r1 and r2 on each circuit. Compute the fraction = r2/(r1+r2) and place it in the
@@ -18,31 +21,24 @@ class SqlWorker:
     def __init__(self):
         self.table = 'LUTS'
         self.luts= [OrderedDict(),OrderedDict(),OrderedDict()]
-        
+        self.vd_fract =  {0:0.688128140703518  , 1:0.313249211356467, 2: 0.248189762796504  }
     
     def _timestamp(self):
         """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
         dt = time.localtime()
         return f"{dt[0]}-{dt[1]}-{dt[2]}_{dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
         
-    def make_inserts(self, table, app_id, chan, vm0, vin_min, vin_max):
+    def make_inserts(self, table, app_id, chan, vin_min, vin_max):
         '''Creates statements that can be copy-pasted into sqlite CLI to insert records into LUTS table.
         The app_id is 
         vin0 and vinend are ten times vin_start and vin_end, vm0 is starting value of vm . The scalars for each chan, vm_k,
         will be what the voltage divider provides: chan 0: vm=2/3*vin, chan1 : vm= 1/3 *vin, chan2: vm=1/4*vin. vm is rounded to 4 decimal places.'''
         od=OrderedDict()
         cnt =0
-        vm_k = 0
-        if chan == 0 :
-            vm_k=0.688128140703518    # from circuit 0 voltage divider:  r1= 99.3k and r2=219.1k
-        elif chan == 1:
-             vm_k = 0.313249211356467  # from circuit 1 voltage divider: r1=99.3k and r2 = 217.7k
-        elif chan == 2:
-            vm_k= 0.248189762796504  # from circuit 2  r1= 301.1k  r2=99.4k  voltage divider
-            
+        vd_fract=self.vd_fract[chan]
         for v in range(vin_min,vin_max):
             vin = v/10
-            vm= round(vin*vm_k, 4)
+            vm= round(vin*vd_fract, 4)
             od[float(vm)]= float(vin)
             statement = f"insert into {table} values( NULL, {app_id}, {chan}, {vm}, {vin}); "
             print(statement)
@@ -111,12 +107,25 @@ class SqlWorker:
             vb = round(vblo + fract * (vbhi-vblo), 3)
             # print(f"interpolated value for {vm} is {vb}")
             return vb
+     #TODO 1:Finish and test method create_cols_vals(...)  so a table with a new schema  can be loaded from the old table (.schema)
+    def create_cols_vals(self, data, schema):
+        '''Removes fields not in schema, Returns two lists with column names (cols) and values (vals) to facilitate inserts into db.'''
+        cols=[]
+        vals=[]
+        for k,v in data._asdict().items():
+            if k not in schema:
+                print("exclude: ", k)
+            else:
+                cols.append(k)
+                vals.append(v)
+        return (cols, vals)
+
             
 sw=SqlWorker()
 #populates the self.luts
-sw.make_inserts('LUTS', 1, 0, 2.0, 30,   46)
-sw.make_inserts('LUTS', 1, 1, 2.0, 60,   91)
-sw.make_inserts('LUTS', 1, 2, 2.0, 90, 136)
+sw.make_inserts('LUTS', 1, 0,   30,   46)
+sw.make_inserts('LUTS', 1, 1,   60,   91)
+sw.make_inserts('LUTS', 1, 2,   90, 136)
 print("For: sw.lookup_chan_vm(0,2.345):")
 print("\t", sw.lookup_chan_vm(0,2.345))
 print("For: sw.lookup_chan_vm(1,2.345):")
@@ -128,3 +137,4 @@ print("\t", sw.lookup_chan_vm(2,2.345))
 
                 
     
+
