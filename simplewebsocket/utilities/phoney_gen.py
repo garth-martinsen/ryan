@@ -64,4 +64,11 @@ class PhoneyGen:
         gui = GUI(frm, to, self.next_gui_id(), code, self.timestamp(), chan, vin)
         #print("gui msg: " , json.dumps(gui._asdict()))
         return json.dumps(gui._asdict())
-        
+
+# sample runs...
+pg = PhoneyGen()
+msg_100_0 = pg.gen_gui("gui", "adc", 100, 0, None)
+print(" msg requesting a measurement on chan 0: ",msg_100_0)
+msg_101_0 = pg.gen_adc("adc", "dbs", 101, 17000,0,'m')
+print()
+print("Response msg from ADC measuring chan 0 to DBS for storage:\n ", msg_101_0)
