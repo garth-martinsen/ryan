@@ -1,11 +1,13 @@
 #file: create LUT table insert statements
-#and move records to a new table with new schema...
-#file: create LUT table insert statements
 
 from collections import OrderedDict
 import time
 from worker_named_tuples import Config_fields , cfg1, Config_fields2,cfg2
 
+FSR=4.096
+STEPS=32768
+LSB=FSR/STEPS
+    
 class SqlWorker:
     '''this class was created to populate the LUTs table for channel 0,1,2 for a project_id. The LUT can be later, updated during calibration.
      The three examples below will create 93  records in the luts table after you have emptied the LUTS table for that app_id 
@@ -18,10 +20,12 @@ class SqlWorker:
      Usage: measure your r1 and r2 on each circuit. Compute the fraction = r2/(r1+r2) and place it in the
      vm_k variables in the make_inserts(...) method. the vm_k values should approximbate 2/3, 1/3, 1/4'''
     
+ 
     def __init__(self):
         self.table = 'LUTS'
         self.luts= [OrderedDict(),OrderedDict(),OrderedDict()]
         self.vd_fract =  {0:0.688128140703518  , 1:0.313249211356467, 2: 0.248189762796504  }
+        
     
     def _timestamp(self):
         """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
@@ -80,7 +84,7 @@ class SqlWorker:
             maxkey=max(maxkey,k)
             minval= min(minval,v)
             maxval=max(maxval,v)
-        print( f"\t bounds for chan { chan} : {minkey} , {maxkey} maps to: {minval} , {maxval}")
+        print( f"\t bounds for chan { chan} : {minkey} , {maxkey} which maps to: {minval} , {maxval}")
         # if vm is on a boundary , return lut(vm)
         if vm==minkey or vm==maxkey:
             return lut[vm]
@@ -108,6 +112,7 @@ class SqlWorker:
             # print(f"interpolated value for {vm} is {vb}")
             return vb
      #TODO 1:Finish and test method create_cols_vals(...)  so a table with a new schema  can be loaded from the old table (.schema)
+
     def create_cols_vals(self, data, schema):
         '''Removes fields not in schema, Returns two lists with column names (cols) and values (vals) to facilitate inserts into db.'''
         cols=[]
@@ -119,10 +124,15 @@ class SqlWorker:
                 cols.append(k)
                 vals.append(v)
         return (cols, vals)
+    
+    
 
+
+        
+        
             
 sw=SqlWorker()
-#populates the self.luts
+#populates the luts
 sw.make_inserts('LUTS', 1, 0,   30,   46)
 sw.make_inserts('LUTS', 1, 1,   60,   91)
 sw.make_inserts('LUTS', 1, 2,   90, 136)
@@ -137,4 +147,3 @@ print("\t", sw.lookup_chan_vm(2,2.345))
 
                 
     
-
