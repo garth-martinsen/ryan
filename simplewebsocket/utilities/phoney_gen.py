@@ -14,9 +14,9 @@ NOM = 21108     # adjust depending on Limits below for a channel.
 ID_ADC = 1000   #increment from this for each originating adc msg. 
 ID_GUI = 5000    #increment from this for each originating gui msg.
 LSB = 4.096/32768   # computed in dbs using Config table values for FSR, STEPS
+vin = 6.904
 
-
-# LIMITS TO A2D for each channel
+# LIMITS TO A2D for each channel for the lookup of vb to work...
 #chan 0: 16513 - 24769
 #chan 1: 15033 - 17867
 #chan 2: 17867 - 26801
@@ -44,22 +44,24 @@ class PhoneyGen:
         dt = time.localtime()
         return f"{dt[0]}-{dt[1]}-{dt[2]}_{dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
 
-    def gen_adc(self, frm, to, code, nom, chan, typ ):
+    def gen_adc(self, frm, to, code, nom, chan, typ , vin):
         '''Returns a json.dumps of a json-worthy dict mimicing  ESP32  ADC action with phoney sample values.
-          nom is a2d value around which to randomize, chan is one of [0,1,2], typ is "Type" one of ['m','c']'''
+          nom is a2d value around which to randomize, chan is one of [0,1,2], typ is "Type" one of ['m','c']. For measurements
+          vin = None. For Calibrations, vin = input voltage to voltage divider.'''
         
-        ADC = namedtuple("ADC", ("frm", "to", "id", "code", "timestamp","chan","type","samples"))
+        ADC = namedtuple("ADC", ("frm", "to", "id", "code", "timestamp","chan","type","vin", "samples"))
         #generate phoney samples centered on nom and random varying by 3 counts in either direction...
         samps = []
         for s in range(0,64):
             samps.append(nom + random.randint(-3,3))
             
-        adc=ADC(frm, to, self.next_adc_id(), code, self.timestamp(), chan, typ, samps)
+        adc=ADC(frm, to, self.next_adc_id(), code, self.timestamp(), chan, typ, vin, samps)
         return json.dumps(adc._asdict())
         
 
     def gen_gui(self, frm,to,code, chan, vin):
-        '''Returns a json-worthy dict mimicing a GUI msg requesting something from dbs or adc.'''
+        '''Returns a json dumps of a json-worthy dict mimicing a GUI msg requesting something from dbs or adc.
+          If vin is not needed for rqst , then vin should be None'''
         GUI = namedtuple("GUI", ("frm", "to", "id", "code", "timestamp","chan", "vin"))
         gui = GUI(frm, to, self.next_gui_id(), code, self.timestamp(), chan, vin)
         #print("gui msg: " , json.dumps(gui._asdict()))
@@ -69,6 +71,13 @@ class PhoneyGen:
 pg = PhoneyGen()
 msg_100_0 = pg.gen_gui("gui", "adc", 100, 0, None)
 print(" msg requesting a measurement on chan 0: ",msg_100_0)
-msg_101_0 = pg.gen_adc("adc", "dbs", 101, 17000,0,'m')
+msg_101_0 = pg.gen_adc("adc", "dbs", 101, 17000,0,'m', None)
 print()
 print("Response msg from ADC measuring chan 0 to DBS for storage:\n ", msg_101_0)
+print()
+print("*****************************")
+msg_200_1 = pg.gen_gui("gui", "adc", 200, 1,  6.903)
+print(" msg requesting a calibration on chan 1 with vin=6.903: ", msg_200_1)
+print()
+msg_201_1 = pg.gen_adc("adc", "dbs", 201, 17300, 1, 'c', 6.904)
+print("Response msg from ADC Calibration of  chan 1 with vin = 6.903 to DBS for storage:\n ", msg_201_1)
