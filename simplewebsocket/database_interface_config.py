@@ -56,8 +56,8 @@ LUT =namedtuple("LUT", ("vm", "vin") )
 
 Stats=namedtuple("Stats",("a2d","vm","vm_sd","vb"))
 
-#db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
-db_path = '/Users/garth/DEV/ryan/simplewebsocket/data/rt_db'
+#db_path = '/Users/garth/DEV/ryan/simplewebsocket/data/rt_db'
+db_path = '/Users/garth/Ryan/ryan/sqliteDB/rt_db'
 
 #message purposes: note that responses from the db or adc will have 1 added eg : 100 -> 101 etc.
 purposes = dict()
@@ -94,4 +94,4 @@ purposes[375]= 'response_lut2_timestamp'
 
 
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
-# BMS join A2D example: select * from BMS bms join A2D a2d on bms.id= a2d.bms_id;   note: first two fields of A2D should be ignored: (id and bms_id)
+
