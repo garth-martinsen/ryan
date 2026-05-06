@@ -13,7 +13,7 @@ class DataStore:
         self.lut_timestamps=[[],[],[]]
         
     def translate_message( self, msg: str):
-        print("Translating message from adc_server.")
+        print("Translating message from server.")
         if msg =="sd":
             self.show_data_store()    
         else:
@@ -87,6 +87,3 @@ class DataStore:
 #         sd=jmsg[6]
 #         samples=jmsg[7]
 #         print(f"time:{timestamp} purpose: {purpose}  FSR: {FSR} LSB: {LSB} chan: {chan} mean: {mean} sd: {sd} samples: {samples} ")
-     
-        
-        
