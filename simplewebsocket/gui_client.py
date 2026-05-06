@@ -56,8 +56,6 @@ async def main():
     while client.ws_gui_db is None:
         await asyncio.sleep(0.1)
         await client.send_db('310')       # get configurations for 3 circuits
-        await client.send_db('312')       # get configurations for 3 circuits
-        await client.send_db('314')       # get configurations for 3 circuits
         await client.send_db('360')       # get lut0
         await client.send_db('362')       # get lut1
         await client.send_db('364')       # get lut2
@@ -65,7 +63,8 @@ async def main():
         await client.send_db('372')       # get lut1  timestamp
         await client.send_db('374')       # get lut2  timestamp
         await asyncio.sleep(5)
-        await client.datastore.show_data_store()
+#      The following causes client to crash. The intention was to see the data from the above cmds... 
+#        await client.datastore.show_data_store()
         await task
 
 asyncio.run(main())
