@@ -4,9 +4,10 @@
 # Goal1:     #Goal: adc_client.py TBD: receive and interpret msg eg:  {"frm": "gui", "to": "adc", "id": 5001, "code": 100, "timestamp": "2026-4-29_18:31:20", "chan": 0, "vin": 0}
 #Goal2:  Return msg: msg from ADC eg:  {"frm": "adc", "to": "dbs", "id": 1001, "code": 101, "timestamp": "2026-4-29_18:31:20", "chan": 0, "type": "m", "vin": null, "samples": [16999, 17003, 17001, 17000, 17003, 17000, 17002, 16999, 16998, 16999, 17001, 17002, 16999, 17002, 17000, 17003, 16998, 17003, 16997, 17001, 17000, 17003, 17000, 17002, 17001, 16999, 17001, 16998, 16999, 16998, 16999, 17003, 16998, 16999, 17002, 17001, 17000, 16999, 16997, 17003, 16997, 16997, 17001, 17000, 16998, 17001, 16998, 16997, 17002, 16998, 16997, 16998, 16999, 17003, 17003, 17000, 16997, 16998, 17003, 17002, 16997, 16998, 17003, 16999]}
 
-#TODO: After Ryan gets network communication working, build the adc_client.py  to meet Goal1.
-from collections import OrderedDict
+#TODO 1 : After Ryan gets network communication working, build the adc_client.py  to meet Goal1.
+from collections import OrderedDict, namedtuple
 from time import ticks_us, ticks_diff, ticks_ms, localtime, time
+from machine import SoftI2C
 import math
 import json
 from ads1x15 import ADS1115
@@ -16,30 +17,28 @@ from adc_cfg import (
     NAMES,
     ADC_ADDRESS,
     ADC_GAIN,
-    SoftI2C,
     Pin,
 Measurements,
     Stats,
     measurements,
     allPins,
-    ads,
 )
 #i2c and ads
 i2c = SoftI2C(Pin(5), Pin(4))
 ads=ADS1115(i2c, ADC_ADDRESS, ADC_GAIN)    # ADC sampler
-
+ADC_MSG = namedtuple("ADC_MSG", ("frm","to", "code", "msgid", "timestamp", "type", "chan", "vin", "samples"))
 cnt=0
 
 class ADC:
-    '''This module monitors 3 circuits (4V, 8V, 12V , which are chans[0,1,2]). To Sample a circuit, set appropriate adc_gain ,
-monitor irq pin for alert signal. At ea alert signal , the irq method stores a2d count and ticks_us until _BUFFERSIZE
+    '''This module monitors 3 circuits (4V, 8V, 12V , which are chans[0,1,2]). Set appropriate  irq pin eg; Pin(17)
+for alert signal. At ea alert , the irq method stores a2d count and ticks_us until _BUFFERSIZE
 samples are stored.  This results in two arrays per channel stored in ESP flash memory:  a2d and uclicks. Flash memory will
-hold data for all three channels.
-The ADC can receive 2 types of message: Set up Periodic ( code: 175), Measure on Chan (code:100 or 200).
-The measurement cmd can be of two types: calibrate (code=200, vin is not 0) and plain measure (code=100, vin=0).
-The msg id from the requesting msg is put back into the response msg, the return code =rqst.code+1.
+hold data for all three channels. The input to the adc chip is A0 (chan=0) A1(chan=1) and A2 (chan=2)
+The ADC can receive 2 types of message: setup_periodic ( code: 175), measure  (code:100 or 200).
+The measurement cmd can be of two types: calibrate (code=200, vin is not 0) and plain
+measure (code=100, vin=0). The msg id from the requesting client is put back into the response msg,
+the return code = rqst.code+1.
 '''
-
     
     def __init__(self):
         self.names = NAMES
@@ -115,50 +114,26 @@ The msg id from the requesting msg is put back into the response msg, the return
             self.index_put += 1
 
     def _process_and_report(self, rqst_id, chan, vin, purpose):
-        '''     Returns dict with fields and samples. The adc_client will send the payload to the server.
-        payload returned depends on the purpose...'''
-    
-#Response msg from ADC measuring chan 0 to DBS for storage:  {"frm": "adc", "to": "dbs", "id": 1001, "code": 101, "timestamp": "2026-4-29_18:31:20", "chan": 0, "type": "m", "vin": null, "samples": [16999, 17003, 17001, 17000, 17003, 17000, 17002, 16999, 16998, 16999, 17001, 17002, 16999, 17002, 17000, 17003, 16998, 17003, 16997, 17001, 17000, 17003, 17000, 17002, 17001, 16999, 17001, 16998, 16999, 16998, 16999, 17003, 16998, 16999, 17002, 17001, 17000, 16999, 16997, 17003, 16997, 16997, 17001, 17000, 16998, 17001, 16998, 16997, 17002, 16998, 16997, 16998, 16999, 17003, 17003, 17000, 16997, 16998, 17003, 17002, 16997, 16998, 17003, 16999]}
-
-        
+        '''     Returns ADC_MSG namedtuple with fields and samples. The adc_client will send the payload to the server.'''
+# Example Response msg from ADC measuring chan 0 to DBS for storage:  {"frm": "adc", "to": "dbs", "id": 5001, "code": 101, "timestamp": "2026-4-29_18:31:20", "chan": 0, "type": "m", "vin": 0, "samples": [16999, 17003, 17001, 17000, 17003, 17000, 17002, 16999, 16998, 16999, 17001, 17002, 16999, 17002, 17000, 17003, 16998, 17003, 16997, 17001, 17000, 17003, 17000, 17002, 17001, 16999, 17001, 16998, 16999, 16998, 16999, 17003, 16998, 16999, 17002, 17001, 17000, 16999, 16997, 17003, 16997, 16997, 17001, 17000, 16998, 17001, 16998, 16997, 17002, 16998, 16997, 16998, 16999, 17003, 17003, 17000, 16997, 16998, 17003, 17002, 16997, 16998, 17003, 16999]}
         print(f"in _process_and_report  purpose: {purpose} channel: {chan}")
         name = self.names[int(chan)]
-        #obj = {}
         # report depends on the purpose: set_up, measure or calibrate
+        code=purpose+1
+        msgid=rqst_id
+        data = []
+        for d in self.measurements[chan].a2d:
+            data.append(d)
         if purpose == 100:
-            # purpose 101 means report measurement to server.
-            data = []
-            for d in self.measurements[chan].a2d:
-                data.append(d)
-            obj = {
-                "frm":'adc',
-                "to" : 'dbs',
-                "id" : rqst_id,                                   # same as id in rqst
-                "code": 101,                                 #will be popped from dict before save to db to yield a BMS record.
-                "timestamp": self._timestamp(),
-                "type": "m",
-                "chan": chan,
-                "vin": vin,  # ignored for meas so is set to Zero
-                "samples": data
-            }
-            print("obj: ", obj)
+            theType='m'
         elif purpose == 200:
-            # 201 means report calibration to server
-            obj = {
-                "frm":'adc',
-                "to" : 'dbs',
-                "id" : self.rqst_id,                                    # same as id in rqst
-                "code": 201,                                 #will be popped from dict before save to db to yield a BMS record.
-                "timestamp": self._timestamp(),
-                "type" : 'c',
-                "chan": chan,
-                "vin": self.vin,
-                "samples": self.measurements[chan].a2d
-            }
-            print(f" reporting back to server:  {type(obj)}  {obj} ")
-            self.msg=obj
-          #  return json.dumps(obj)
-            return obj
+            theType='c'
+        # ADC_MSG: ("frm","to", "code", "msgid", "timestamp", "type", "chan", "vin", "samples")
+        msg = ADC_MSG('adc', 'dbs', code, msgid, self._timestamp(), theType, chan, vin, data)
+        print("msg: ", msg)
+        print(f" reporting back to server:  {type(msg)}  {msg} ") 
+        #  return json.dumps(msg)
+        return msg
 
     def start_periodic_measurements(self, msgid, period, reps):
         ''' Sets up the Esp32 to make 'reps' repetitions of  measurments, spaced to occur every period seconds. '''
@@ -167,6 +142,7 @@ The msg id from the requesting msg is put back into the response msg, the return
         print(f"Measurements will occur every {period} seconds and repeat  {reps}  times, starting immediately")
         # The following will be put into a separate method so the wait time can be used to sleep lightly for period seconds and reps can be counted.
         self.index_put = 0
+        #TODO 3: Factor in the async stuff so periodic measurements work
         #self.measure(0,msgid,0,100)
 #         for r in range(self.measurement_reps + 1):
 #             self.measure(0,msgid,0, 100)
@@ -175,7 +151,10 @@ The msg id from the requesting msg is put back into the response msg, the return
         
         print("Measurements: ")
         print(self.measurements)
-#TODO Design outlier rejection, Actual asd1115 measurements. First element is bogus on 8.4V and 12.6 V channels. Rejecting these results in errors < .05 V for ch 2  
+#TODO 2 Design outlier rejection, Done: 1st stats computes mean. Keep samples that satisfy
+# filter condition : keep = [x for x in samples if abs(x-m) < m ] ( example: sd for ads1x15 is ~< 2 counts
+#so any sample that is less than mean counts from the mean is kept and others are rejected.
+#Actual asd1115 measurements. First element is bogus on 8.4V and 12.6 V channels. Rejecting these results in errors < .05 V for ch 2  
 # samps0 at vin= 4.2V: [24965, 24969, 24969, 24968, 24968, 24970, 24969, 24968, 24969, 24970, 24968, 24971, 24970, 24970, 24968, 24970, 24970, 24970, 24969, 24969, 24973, 24967, 24969, 24970, 24970, 24967, 24969, 24971, 24967, 24969, 24969, 24971, 24968, 24970, 24971, 24969, 24969, 24970, 24969, 24970, 24969, 24971, 24966, 24969, 24972, 24966, 24969, 24969, 24968, 24969, 24971, 24970, 24969, 24970, 24971, 24969, 24969, 24969, 24969, 24968, 24969, 24969, 24971, 24969]
 #samps1 at vin=8.4V: [527, 22345, 22347, 22347, 22346, 22347, 22346, 22347, 22346, 22347, 22346, 22347, 22345, 22347, 22346, 22347, 22346, 22347, 22346, 22347, 22347, 22347, 22346, 22346, 22346, 22346, 22347, 22346, 22346, 22346, 22347, 22346, 22348, 22346, 22347, 22346, 22347, 22347, 22347, 22346, 22346, 22346, 22346, 22347, 22346, 22347, 22346, 22347, 22346, 22348, 22346, 22348, 22346, 22347, 22347, 22347, 22346, 22347, 22346, 22346, 22347, 22346, 22346, 22346]
 #samps2 at vin=12.6V: [149, 25102, 25102, 25101, 25102, 25101, 25101, 25101, 25102, 25102, 25101, 25102, 25101, 25102, 25101, 25102, 25101, 25102, 25101, 25102, 25101, 25101, 25102, 25102, 25102, 25102, 25102, 25101, 25102, 25102, 25102, 25101, 25102, 25102, 25101, 25101, 25101, 25102, 25101, 25101, 25102, 25102, 25101, 25102, 25102, 25102, 25101, 25102, 25101, 25102, 25101, 25101, 25101, 25101, 25102, 25101, 25102, 25101, 25102, 25101, 25102, 25102, 25102, 25101]
