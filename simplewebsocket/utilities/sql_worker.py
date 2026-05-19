@@ -2,7 +2,6 @@
 
 from collections import OrderedDict
 import time
-from worker_named_tuples import Config_fields , cfg1, Config_fields2,cfg2
 
 FSR=4.096
 STEPS=32768
@@ -24,9 +23,9 @@ class SqlWorker:
     def __init__(self):
         self.table = 'LUTS'
         self.luts= [OrderedDict(),OrderedDict(),OrderedDict()]
-        self.vd_fract =  {0:0.688128140703518  , 1:0.313249211356467, 2: 0.248189762796504  }
-        
-    
+#        self.vd_fract =  {0:0.688128140703518  , 1:0.313249211356467, 2: 0.248189762796504  }
+        self.vd_fract = {0:0.749814585908529, 1: 0.33633904418395, 2:0.250186335403727}
+
     def _timestamp(self):
         """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
         dt = time.localtime()
@@ -133,15 +132,20 @@ class SqlWorker:
             
 sw=SqlWorker()
 #populates the luts
+print()
+print("vd_fracts: ", sw.vd_fract)
+print("=========================")
 sw.make_inserts('LUTS', 1, 0,   30,   46)
+print()
 sw.make_inserts('LUTS', 1, 1,   60,   91)
+print()
 sw.make_inserts('LUTS', 1, 2,   90, 136)
 print("For: sw.lookup_chan_vm(0,2.345):")
 print("\t", sw.lookup_chan_vm(0,2.345))
 print("For: sw.lookup_chan_vm(1,2.345):")
 print("\t", sw.lookup_chan_vm(1,2.345))
-print("For: sw.lookup_chan_vm(2,2.345):")
-print("\t", sw.lookup_chan_vm(2,2.345))
+print("For: sw.lookup_chan_vm(2,2.79215):")
+print("\t", sw.lookup_chan_vm(2,2.79215))
 
 
 
