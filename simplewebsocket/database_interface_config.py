@@ -2,70 +2,38 @@
 
 from collections import namedtuple
 
-# named tuples
-Lut_Limits = namedtuple( "Lut_Limits", ("circuit_name", "lower_limit", "upper_limit", "length"))
+# named tuples... Where they match db table column names they will be upper case.
 
-CONFIG_FIELDS =    (
-        "id",
-        "owner",
-        "app_id",
-        "app_desc",
-        "chan",
-        "chan_desc",
-        "version",
-        "version_desc",
-        "creation_time",
-        "tempC",
-        "ADC_GAIN",
-        "ADC_SAMPLE_RATE",
-        "C1",
-        "r1",
-        "r2",
-        "LUT_CALIBRATED",
-        "LUT_TS",
-        "VD_FRACT"
-    )
+CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_ID', 'APP_DESC', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC', 'CREATION_TIME', 'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'C1', 'R1', 'R2', 'VD_FRACT', 'LUT_CALIBRATED', 'LUT_TS')
 
-Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #17 fields
+Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #19 fields
 
 Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
-# CREATE TABLE BMS ( id integer primary key, timestamp varchar, type varchar,chan integer, a2d real, vm real, vm_sd real,  vb real, sample_period real, store_time real, gate_time real, vin real, error real);
-# fields 0 -6 populated by ADC ,  fields 7-11 populated by calculations by (gui_client or databaseInterface)
-BMS_FIELDS = (
-    'id',
-    'timestamp',
-    'type',
-    'chan',
-    'FSR',
-    'LSB',
-     'vin',
-    'error',
-    'a2d',
-    'vm',
-    'vm_sd',
-    'vb',
-    'samples'
-)
+BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
 
-#  from 3/14/26 21:34   BMS = namedtuple("BMS",("id","timestamp","type","chan","sample_period","store_time","gate_time","vin","error","a2d","vm","vm_sd","vb","samples"))
+BMS = namedtuple("BMS", BMS_FIELDS )   #16 fields 6/4/2026
+# LUTS schema: ID  | app_id | chan |   vm   | vin  | version 
+LUT =namedtuple("LUT", ("ID", "APP_ID", "VM", "VIN", "VERSION") )
+
+Lut_Limits = namedtuple( "Lut_Limits", ("circuit_name", "lower_limit", "upper_limit", "length"))
 
 
-BMS = namedtuple("BMS", BMS_FIELDS )   #13 fields
-
-LUT =namedtuple("LUT", ("vm", "vin") )
 
 Stats=namedtuple("Stats",("a2d","vm","vm_sd","vb"))
 
+#db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
 #db_path = '/Users/garth/DEV/ryan/simplewebsocket/data/rt_db'
-db_path = '/Users/garth/Ryan/ryan/sqliteDB/rt_db'
+#db_path =   '/Users/garth/MERGE/ryan/sqliteDB/rt_db'
+db_path =   '/Users/garth/DEV/ryan/sqliteDB/rt_db'
 
-#message purposes: note that responses from the db or adc will have 1 added eg : 100 -> 101 etc.
+#message purposes: note that responses from the db or adc will have 1 added to rqst code, eg : 100 -> 101 etc.
 purposes = dict()
 purposes[100]='request_measure'                      #all chans 
 purposes[101]='response_measurement'
 purposes[150]= 'past_measurements_0'            #chan 0
 purposes[152]= 'past_measurements_1'           #chan 1
 purposes[154]= 'past_measurements_2'           #chan 2
+purposes[175]='set_up_periodic_measurements'
 purposes[200]='request_calibrate_0'
 purposes[201]='response_calibration'
 purposes[202]='request_calibrate_1'
@@ -94,4 +62,4 @@ purposes[375]= 'response_lut2_timestamp'
 
 
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
-
+# BMS join A2D example: select * from BMS bms join A2D a2d on bms.id= a2d.bms_id;   note: first two fields of A2D should be ignored: (id and bms_id)
