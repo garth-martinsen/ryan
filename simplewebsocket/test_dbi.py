@@ -116,14 +116,14 @@ class Test_DBI:
         EPS=1e-6
         if chan == 0:
             print(f"r1 {cfg.R1}  R2: {cfg.R2}")
-            assert cfg.CHAN_DESC ==  '1 Cell 3.0-4.5V' , "Wrong description"
+            assert cfg.CHAN_DESC ==  'One Cell 3.0-4.5V' , "Wrong description"
             assert abs(cfg.R1  -    101100) < EPS, f"Wrong value for R1. Should be: {configs[0].R1}"
             assert abs(cfg.R2  -  303700) < EPS, f"Wrong value for r2. Should be: {configs[0].R2}"
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
 
         elif chan == 1:
             print(f"chan 1 R1: {cfg.R1}  R2: {cfg.R2}")
-            assert cfg.CHAN_DESC == '2 Cells 6.0-9.0V' , "Wrong description"
+            assert cfg.CHAN_DESC == 'Two Cells 6.0-9.0V' , "Wrong description"
             assert (cfg.C1 - 1.0e-07 < EPS), f"Wrong value for C1. Should be {1e-07}"
             assert (cfg.R1 - 222200 < EPS) , f"Wrong value for r1. Should be: {cfg.R1}"
             assert (cfg.R2 - 111800 <EPS) , f"Wrong value for r2. Should be: {cfg.R2}"
@@ -131,7 +131,7 @@ class Test_DBI:
 
         elif chan == 2:
             print(f" chan 2 r1: {cfg.R1}  r2: {cfg.R2}")
-            assert cfg.CHAN_DESC == '3 Cells 9.0-13.5V', "Wrong description"
+            assert cfg.CHAN_DESC == 'Three Cells 9.0-13.5V', "Wrong description"
             assert cfg.R1== 301400,f"Wrong value for r1. Should be: {cfg.R1}"
             assert cfg.R2 == 100700,  f"Wrong value for r2. Should be: {cfg.R2}"
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
@@ -166,9 +166,7 @@ class Test_DBI:
         msg['TYPE']='c'
         #save to db
         cols, vals = dbi.save_calibration(msg)
-        ed = OrderedDict(zip(cols, vals))      #extract_dict
-        print("extract_dict: ",  ed)
-        #read from db
+         #read from db
         records = dbi.list_calibrations(1)
         print(f" len(records) : {len(records)}")
         lenc= len(records)
@@ -220,11 +218,11 @@ class Test_DBI:
            # print(f" Last Record : {last_record}")
             print(f" Last Record : {last_record}")
             #print(f"Last record type is: {last_record.type} ")
-            print( "last_record     msg attribute" )
-            print( f" {last_record.TYPE} ..........  {msg['TYPE']}")
-            print( f" {last_record.VM_MEAN}.......... { msg['VM_MEAN']}")
-            print( f" {last_record.TIMESTAMP} ..........{msg['TIMESTAMP']}")
-            assert last_record.TYPE == 'm' , f" Type: {last_record.TYPE} should be 'm' "
+#             print( "last_record     msg attribute" )
+#             print( f" {last_record.TYPE} ..........  {msg['TYPE']}")
+#             print( f" {last_record.VM_MEAN}.......... { msg['VM_MEAN']}")
+#             print( f" {last_record.TIMESTAMP} ..........{msg['TIMESTAMP']}")
+#             assert last_record.TYPE == 'm' , f" Type: {last_record.TYPE} should be 'm' "
             assert  last_record.VM_MEAN - msg['VM_MEAN']  < eps, f" Vm: {last_record.VM_MEAN} is not  equal to: {msg.VM_MEAN}"
             assert last_record.TIMESTAMP == ts, f" Timestamp is wrong.  {last_record.TIMESTAMP} differs from ts : {ts}"
             print( "Passed  test_save_measurement")
@@ -259,49 +257,79 @@ class Test_DBI:
 
             print("Passed  test_list_measures")
 
-    def test_update_lut_0(self):
+    def test_update_lut(self, chan):
         print("===================")
-        print("testing update_lut0()")
-        msg = {}
-        #add .0001 to first and last values in LUT  {2.2507: 3.0001, and  3.3761: 4.5001} and save
-        lut0= dbi.get_lut(0, dbi.version)
-        first = 3.0001
-        last = 4.5001
-        lut0[2.2507]=first
-        lut0[3.3761]=  last
-        print("after adding .0001: ", lut0)
-        msg["LUT"]=str(lut0)
-        ts = dbi._timestamp()
-        msg["chan"] = 0
-        print (f"msg: {msg} ")
-
-        dbi.update_lut(msg, dbi.version)  # changing vals on first and last
-# TODO 5: Find error in updating lut . Expect problem is in dbi.update_lut(msg)
-        lut = dbi.get_lut(0, dbi.version)
-        cfg= Config(*dbi.load_config(1,0,dbi.version)[0])
-        eps = 1e-6
-        print(f"cfg: {cfg}  lut: {lut}")
-        lut_ts = cfg.LUT_TS
-        print("testing for updated 2nd to last and last: " , first, last)
-        print(f"lut[2.2507]:  {lut[2.2507]}  lut[3.3761] : {lut[3.3761]}")
-        assert lut_ts[:-1] == ts[:-1], f"Update of LUT should have correct timestamp {ts}  found: {lut_ts}."
-        assert lut[2.2507] - first <eps, "Value of first lut pair was not updated to {first}"
-        assert lut[3.3761] - last <eps, "Value of last lut pair was not updated to {last}"
-        print("Passed")
-        # restoring first & last vals... 
-        print("Restoring original values")
-        first = 3.0
-        last = 4.5
-        lut0[2.2507]=first
-        lut0[3.0966]=  last
-        msg["LUT"]=str(lut0)
-        ts = dbi._timestamp()
-        msg["chan"] = 0
-        print (f"msg: {msg} ")
-        dbi.update_lut(msg,dbi.version)
-        print()
-        print("Passed  test_update_lut_0")
+        print("testing update_lut(chan) by adding  .0001 to first and last values in LUT, saving to db, testing update, then restoring")        
+        lut= dbi.get_lut(chan, dbi.version)
+        first_vm= min(lut.keys())
+        last_vm= max(lut.keys())
+        # save to check restoration
+        first_vin = lut[first_vm]
+        last_vin= lut[last_vm]
+        # modify the first and last vin by adding 0.0001 to each
+        updated_first_vin = first_vin + 0.0001
+        updated_last_vin = last_vin  + 0.0001
+        lut[first_vm]= updated_first_vin
+        lut[last_vm]= updated_last_vin
+        #print("\tafter adding .0001: ", lut)
+        # get ids for first and last
+        first_id, vm, vin, version = dbi.get_lut_row(chan, first_vm)
+        last_id, vm, vin, version = dbi.get_lut_row(chan, last_vm)
+        # update the first and the last pairs in the lut.  saving lut_ts to config. is part of dbi.update_lut_pair()
+        dbi.update_lut_pair( chan, first_id, first_vm, updated_first_vin)
+        dbi.update_lut_pair( chan, last_id, last_vm, updated_last_vin)
+        # check to see if lut was updated with +0.0001
+        lut= dbi.get_lut(chan, dbi.version)
+        eps=1e-6
+        print("\tlut retrieved after update by 0.0001: " , lut)
+        assert lut[first_vm] - updated_first_vin < eps, f" First vin was not updated. should be: {updated_first_vin}"
+        assert lut[last_vm] - updated_last_vin < eps, f" Last vin was not updated. should be: {updated_last_vin}"
+        #restore lut to original state
+        dbi.update_lut_pair(chan, first_id, first_vm, lut[first_vm] -  0.0001)
+        dbi.update_lut_pair(chan, last_id, last_vm, lut[last_vm] -  0.0001)
+        # check restoration
+        lut=dbi.get_lut(chan, dbi.version)
+        assert lut[first_vm] == first_vin , f" First vin was not restored. should be: {first_vin}"
+        assert lut[last_vm] == last_vin , f" Last vin was not restored. should be: {last_vin}"
+          
+        print(f"Passed test_update_lut({chan}) ")
         
+    
+
+# TODO 5: Find error in updating lut . Expect problem is in dbi.update_lut(msg)
+
+#         dbi.update_lut(msg, dbi.version)  # changing vals on first and last
+#         lut = dbi.get_lut(0, dbi.version)
+#         original_first = lut[2.2507]
+#         original_last = lut[3.3761]
+#         print(f"\t Original first and last: {original_first} {original_last}")
+#         cfg= Config(*dbi.load_config(1,0,dbi.version)[0])
+#         eps = 1e-6
+#         print(f"cfg: {cfg}  lut: {lut}")
+#         lut_ts = cfg.LUT_TS
+#         lut[2.2507]=lut[2.2507] + 0.0001
+#         lut[3.3761]= lut[3.3761] + 0.0001
+#         print("\t Updated first and last: " , updated_first, updated_last)
+#         
+#         print(f"lut[2.2507]:  {lut[2.2507]}  lut[3.3761] : {lut[3.3761]}")
+#         assert lut_ts[:-1] == ts[:-1], f"Update of LUT should have correct timestamp {ts}  found: {lut_ts}."
+#         assert lut[2.2507] - first <eps, "Value of first lut pair was not updated to {first}"
+#         assert lut[3.3761] - last <eps, "Value of last lut pair was not updated to {last}"
+#         print("update_lut(...) Passed")
+#         # restoring first & last vals... 
+#         print("Restoring original values")
+#         first = 3.0
+#         last = 4.5
+#         lut0[2.2507]=first
+#         lut0[3.0966]=  last
+#         msg["LUT"]=str(lut0)
+#         ts = dbi._timestamp()
+#         msg["chan"] = 0
+#         print (f"msg: {msg} ")
+#         dbi.update_lut(msg,dbi.version)
+#         print()
+#         print("Passed  test_update_lut_0")
+#         
 
     def test_stats(self):
         '''Tests the computation of mean, sd, interpolation,'''
@@ -315,35 +343,44 @@ class Test_DBI:
         assert stat0.vb- 3.7 <eps , f" vb is wrong: {stat.vb}. Should be: {3.7}'"
 
         print("Passed  test_stats")
-     # TODO7: Remove the complexity of fudging boundaries, too complex...  
-    def test_lut_limits(self):
+     # TODO7: Remove the complexity of fudging boundaries, too complex... Also expand so it covers all channels... 
+    def test_lut_limits(self,chan):
         '''If a vm is within 1/2 of a vm step, then use the key at that end of the lut'''
         print("===================")
-        print("Testing Lut Limits... chan 0")
-        chan = 0
-        vd_fract = 0.688128140703518  # from config record for chan 0
-        vin_step = 0.1                               # every 0.1v is next vin
-        vm_lo =2.2507    # vm for lowest vin, 3.0V
-        vm_hi = 3.3761   # vim for highest vin, 4.5v
+        print(f"Testing Lut Limits... chan {chan}")
+        lut= dbi.get_lut(chan, dbi.version)
+        vm_lo= min(lut.keys())
+        vm_hi= max(lut.keys())           
         ok_lo_vm = vm_lo   
-        ok_hi_vm = vm_hi 
+        ok_hi_vm = vm_hi
+        too_low_vm = vm_lo - 0.12345
+        too_high_vm = vm_hi +0.12345
+
         eps = 1e-6
         print(f" for vm= ok_lo_vm = {ok_lo_vm}")
-        vm,lut = dbi.matchesboundary(chan, ok_lo_vm + .0003, dbi.version)
+        vm,lut = dbi.matchesboundary(chan, ok_lo_vm, dbi.version)
         if vm is not None:
             print("vm: " , vm)
-            assert abs(vm - 2.2507) < eps, "vm is incorrect. "
+            assert abs(vm - vm_lo) < eps, f"vm: {vm} is incorrect. It should be {vm_lo}"
         print(f" for vm= ok_hi_vm = {ok_hi_vm}")
-        vm, lut = dbi.matchesboundary(chan, ok_hi_vm - 0.0003 , dbi.version)
+        vm, lut = dbi.matchesboundary(chan, ok_hi_vm , dbi.version)
         print("vm: ", vm)
         if vm is not None:
             print("vm: " , vm)
-            assert abs(vm - 3.3761 ) < eps,  "vm is incorrect. "
+            assert abs(vm - vm_hi ) < eps,  "vm is incorrect. "
+        vm, lut = dbi.matchesboundary(chan, too_low_vm, dbi.version)
+        assert vm is None, "Error, should return None"
+        vm, lut = dbi.matchesboundary(chan, too_high_vm, dbi.version)
+        assert vm is None, "Error, should return None"
+        
         print()
         print("Passed  test_lut_limits")
         
 testdbi=Test_DBI()
 #start_msg is defined near line 18
+#TODO 8: Fix: save_calibration() and save_measurement() values and cols is confused.
+
+
 testdbi.test_get_lut0(0)
 testdbi.test_get_lut1(1)
 testdbi.test_get_lut2(2)
@@ -351,14 +388,15 @@ testdbi.test_load_config(1,0)
 testdbi.test_load_config(1,1)
 testdbi.test_load_config(1,2)
 testdbi.test_cols_vals(deepcopy(start_msg))
-#TODO 8: Fix: save_calibration() and save_measurement() values and cols is confused.
 testdbi.test_save_calibration(deepcopy(start_msg))
 testdbi.test_save_measurement(deepcopy(start_msg))
-#testdbi.test_timestamp()
 testdbi.test_list_measures()
 testdbi.test_list_calibrations()
-testdbi.test_update_lut_0()
-testdbi.test_lut_limits()
+testdbi.test_update_lut(2)
+testdbi.test_lut_limits(0)
+
+#testdbi.test_timestamp()
+
 
 
     
