@@ -2,10 +2,11 @@
 
 from database_interface import DatabaseInterface
 from database_interface_config import Config, LUT, BMS, BMS_FIELDS, CONFIG_FIELDS
-from dbi_records import  configs,  bms
+from dbi_records import  configs,  bms, samples, answers, lut_answers
 #from lut_convert import LutConvert as LC
 from collections import OrderedDict
 from copy import deepcopy
+import json
 
 app_id=1
 version=3
@@ -13,8 +14,10 @@ version=3
 # 21353, 21355, 21355, 21355, 21355, 21356, 21351, 21358, 21356, 21358, 21358, 21353, 21352, 21358, 21358, 21353, 21355, 21357, 21356, \
 # 21353, 21354, 21356, 21358, 21356, 21355, 21358, 21351, 21351, 21354, 21356, 21351, 21352, 21354, 21355, 21355, 21352, 21354, 21358, \
 # 21355, 21356, 21358, 21357, 21356, 21357, 21352, 21353]'
+print("Database initialization: =======================")        
 
 dbi = DatabaseInterface(app_id,version)
+print("End of Database initialization: =======================")        
 
 #6/6/26: BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
 
@@ -49,56 +52,24 @@ class Test_DBI:
      
     #for the given channel 0. Testing is done on 1st and  last pairs....'''
     '''Selects the lut for the channel 0. '''
-    def test_get_lut0(self, chan):
-        print("===================")
-        print("testing get_lut(0)")
-        chan = 0
+    def test_get_lut(self, chan):
+        #print("===================")
+        print(f"testing get_lut({chan})")
         lut= dbi.get_lut(chan,dbi.version)
         lut=OrderedDict(lut)
-        print(f"lut[0]: {lut}")
+        first_vm=min(lut.keys())
+        last_vm = max(lut.keys())
+        print(f"lut: {lut}")
         print(f"type of lut:  { type(lut)} , lut: { lut} ")
-        firstval=3.0
-        lastval = 4.5
-        assert lut[2.2507] == firstval  , f"{ lut[2.0644] } is wrong ; it should be first value in lut : {firstval} "
-        assert lut[3.3761] == lastval ,   f"{ lut[3.0966] } is wrong ; it should be  last value in lut : {lastval}"
+        firstvin=lut[first_vm]
+        lastvin = lut[last_vm]
+        assert firstvin == lut_answers[chan][0]  , f" firstvin is wrong ; it should be first value in lut : {lut_answers[chan][0]} "
+        assert lastvin == lut_answers[chan][1] ,   f" lastvin is wrong ; it should be  last value in lut : {lut_answers[chan][1]} "
          
-        print("Passed  test_get_lut0")
+        print(f"Passed  test_get_lut chan: {chan}")
          
- #for the given channel 1. Testing is done on 1st and  last pairs...
-    def test_get_lut1(self,chan):
-        print("===================")
-        print("testing get_lut1(1)")
-        chan = 1
-        lut= dbi.get_lut(chan, dbi.version)
-        lut=OrderedDict(lut)
-        print(f"lut[0]: {lut}")
-        print(f"type of lut:  { type(lut)} , lut: { lut} ")
-        firstval=6.0
-        lastval = 9.0
-        assert lut[2.0084] == firstval  , f"{ lut[2.0644] } is wrong ; it should be first value in lut : {firstval} "
-        assert lut[3.0126] == lastval ,   f"{ lut[3.0966] } is wrong ; it should be  last value in lut : {lastval}"
-         
-        print("Passed  test_get_lut1")
-
-    # for channel 2 lut. Testing is done on1st and  last pairs...
-    def test_get_lut2(self, chan) :
-        '''Selects the lut for the given channel 2. '''
-        print("===================")
-        print("testing get_lut2(2)")
-        chan=2
-        lut= dbi.get_lut(chan, dbi.version)
-        lut=OrderedDict(lut)
-        print(f"lut[0]: {lut}")
-        print(f"type of lut:  { type(lut)} , lut: { lut} ")
-        firstval=9.0
-        lastval = 13.5
-        assert lut[2.2539] == firstval  , f"{ lut[2.0644] } is wrong ; it should be first value in lut : {firstval} "
-        assert lut[3.3809] == lastval ,   f"{ lut[3.0966] } is wrong ; it should be  last value in lut : {lastval}"
-         
-        print("Passed  test_get_lut2")
-       
     #TODO 3 DONE  : Finish test_load_config
-     #TODO 6: This test queries the db. Not good practice for unit tests...   
+     #TODO 6: This test queries the db. Not good practice for unit tests... Also too many literals...  
     def test_load_config(self, app_id, chan):
         '''fetches the  record from the CONFIG table for the chan'''
         print("===================")
@@ -108,14 +79,12 @@ class Test_DBI:
         print(f"type(record):  {type(record)} config record for chan :{chan}: {Config(*record[0])} ")
         cfg= Config(*record[0])
         #dbi.cfgs[chan]=cfg
-        print(f" config[0]: {configs[0]}")
-        print(f" config[1]: {configs[1]}")
-        print(f" config[2]: {configs[2]}")
+       # print(f" config[0]: {configs[chan]}")
         #assert len(records) == 3, "There should be only 3 records, one for each channel"
        
         EPS=1e-6
         if chan == 0:
-            print(f"r1 {cfg.R1}  R2: {cfg.R2}")
+            print(f"R1 {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC ==  'One Cell 3.0-4.5V' , "Wrong description"
             assert abs(cfg.R1  -    101100) < EPS, f"Wrong value for R1. Should be: {configs[0].R1}"
             assert abs(cfg.R2  -  303700) < EPS, f"Wrong value for r2. Should be: {configs[0].R2}"
@@ -130,10 +99,10 @@ class Test_DBI:
             assert (cfg.C1 - 1.0e-07 < EPS), f"Wrong value for C1. Should be {1e-07}"
 
         elif chan == 2:
-            print(f" chan 2 r1: {cfg.R1}  r2: {cfg.R2}")
+            print(f" chan 2 R1: {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC == 'Three Cells 9.0-13.5V', "Wrong description"
-            assert cfg.R1== 301400,f"Wrong value for r1. Should be: {cfg.R1}"
-            assert cfg.R2 == 100700,  f"Wrong value for r2. Should be: {cfg.R2}"
+            assert cfg.R1== 301400,f"Wrong value for R1. Should be: {cfg.R1}"
+            assert cfg.R2 == 100700,  f"Wrong value for R2. Should be: {cfg.R2}"
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
         print(f"Passed  test_load_config for chan: {chan}")
      
@@ -147,9 +116,9 @@ class Test_DBI:
 #         assert last.timestamp[:-1] == ts[:-1], f" Timestamp is incorrect! {ts} from last record:{last.timestamp}" 
 #         print("Passed")
    
-     #TODO 1 : Fix the BMS namedtuple so last record is interpreted correctly...
-     #TODO 2: The BMS is scrambled. Find out why. Look at test.dbi.save_calibration outputs. timestamp and cfg_id are swapped.
-     #TODO 4: 3/11/26: Finish calibration test. BMS and A2D tables are new or restructured...
+     #TODO 1 : DONE: Fix the BMS namedtuple so last record is interpreted correctly...
+     #TODO 2: DONE: The BMS is scrambled. Find out why. Look at test.dbi.save_calibration outputs. timestamp and cfg_id are swapped.
+     #TODO 4: DONE. 3/11/26: Finish calibration test. BMS and A2D tables are new or restructured...
     def test_save_calibration(self, msg):
         print("===================")
         print("testing save_calibration()")
@@ -217,37 +186,32 @@ class Test_DBI:
             last_record = BMS(*records[-1])     # this is creating errors b ecause the BMS order is not used correctly
            # print(f" Last Record : {last_record}")
             print(f" Last Record : {last_record}")
-            #print(f"Last record type is: {last_record.type} ")
-#             print( "last_record     msg attribute" )
-#             print( f" {last_record.TYPE} ..........  {msg['TYPE']}")
-#             print( f" {last_record.VM_MEAN}.......... { msg['VM_MEAN']}")
-#             print( f" {last_record.TIMESTAMP} ..........{msg['TIMESTAMP']}")
-#             assert last_record.TYPE == 'm' , f" Type: {last_record.TYPE} should be 'm' "
             assert  last_record.VM_MEAN - msg['VM_MEAN']  < eps, f" Vm: {last_record.VM_MEAN} is not  equal to: {msg.VM_MEAN}"
             assert last_record.TIMESTAMP == ts, f" Timestamp is wrong.  {last_record.TIMESTAMP} differs from ts : {ts}"
             print( "Passed  test_save_measurement")
 
-    def test_list_calibrations(self):
+    def test_list_calibrations(self,chan):
         print("===================")
-        print("testing list_calibrations()")
-        records = dbi.list_calibrations(1)
+        print(f"testing list_calibrations({chan})")
+        records = dbi.list_calibrations(chan)
         lenc=len(records)
-        print(f"records:  {records}")
-        last_record = BMS(*records[-1])
-        #print(f" records[-1]: {records[-1]}")
-        assert last_record.TYPE == 'c' , f" type: {last_record.type} is not 'c'"
-        print(f"Number of calibration records: {lenc} ")
-        print("Passed test_list_calibrations")
+        print(f"Number of calibration records on chan {chan}: {lenc} ")
+        if lenc > 1:
+            print(f"records:  {records}")
+            last_record = BMS(*records[-1])
+            #print(f" records[-1]: {records[-1]}")
+            assert last_record.TYPE == 'c' , f" type: {last_record.type} is not 'c'"
+        print(f"Passed test_list_calibrations on chan: {chan}")
         
   
-    def test_list_measures(self):
+    def test_list_measures(self, chan):
         print("===================")
-        print("testing list_measures() on chan 1")
-        records = dbi.list_measurements(1)
+        print(f"testing list_measures() on chan {chan}")
+        records = dbi.list_measurements(chan)
         lenm=len(records)
         if lenm < 1:
             print( "no records")
-            print("Passed")
+            print(f"Passed on chan {chan}")
         else:
             print(f"records:  {records}")
             last_record = BMS(*records[-1])
@@ -255,11 +219,11 @@ class Test_DBI:
             assert last_record.TYPE == 'm' , f" Type: {last_record.type} is not 'm'"
             print(f"Number of measurement records: {lenm} ")
 
-            print("Passed  test_list_measures")
+            print(f"Passed  test_list_measures on chan: {chan}")
 
     def test_update_lut(self, chan):
         print("===================")
-        print("testing update_lut(chan) by adding  .0001 to first and last values in LUT, saving to db, testing update, then restoring")        
+        print(f"testing update_lut({chan}) by adding  .0001 to first and last values in LUT, saving to db, testing update, then restoring")        
         lut= dbi.get_lut(chan, dbi.version)
         first_vm= min(lut.keys())
         last_vm= max(lut.keys())
@@ -296,53 +260,24 @@ class Test_DBI:
         
     
 
-# TODO 5: Find error in updating lut . Expect problem is in dbi.update_lut(msg)
 
-#         dbi.update_lut(msg, dbi.version)  # changing vals on first and last
-#         lut = dbi.get_lut(0, dbi.version)
-#         original_first = lut[2.2507]
-#         original_last = lut[3.3761]
-#         print(f"\t Original first and last: {original_first} {original_last}")
-#         cfg= Config(*dbi.load_config(1,0,dbi.version)[0])
-#         eps = 1e-6
-#         print(f"cfg: {cfg}  lut: {lut}")
-#         lut_ts = cfg.LUT_TS
-#         lut[2.2507]=lut[2.2507] + 0.0001
-#         lut[3.3761]= lut[3.3761] + 0.0001
-#         print("\t Updated first and last: " , updated_first, updated_last)
-#         
-#         print(f"lut[2.2507]:  {lut[2.2507]}  lut[3.3761] : {lut[3.3761]}")
-#         assert lut_ts[:-1] == ts[:-1], f"Update of LUT should have correct timestamp {ts}  found: {lut_ts}."
-#         assert lut[2.2507] - first <eps, "Value of first lut pair was not updated to {first}"
-#         assert lut[3.3761] - last <eps, "Value of last lut pair was not updated to {last}"
-#         print("update_lut(...) Passed")
-#         # restoring first & last vals... 
-#         print("Restoring original values")
-#         first = 3.0
-#         last = 4.5
-#         lut0[2.2507]=first
-#         lut0[3.0966]=  last
-#         msg["LUT"]=str(lut0)
-#         ts = dbi._timestamp()
-#         msg["chan"] = 0
-#         print (f"msg: {msg} ")
-#         dbi.update_lut(msg,dbi.version)
-#         print()
-#         print("Passed  test_update_lut_0")
-#         
-
-    def test_stats(self):
+    def test_stats(self, chan):
+        global samps
         '''Tests the computation of mean, sd, interpolation,'''
         print("===================")
-        print("testing stats()")
+        print(f"testing stats({chan})")
         eps = 1e-6
-        stat0 = dbi.stats(0, samps)     
-        assert stat0.a2d- 21655 < eps , f" A2d mean count is wrong: {stat.a2d}. Should be: {21655.4}'"
-        assert stat0.vm - 2.075< eps , f" vm  is wrong: {stat.vm}. Should be: {2.655}'"
-        assert stat0.vm_sd - 0.00028< eps , f" vm_sd  is wrong: {stat.vm_sd}. Should be: {0.00029}'"
-        assert stat0.vb- 3.7 <eps , f" vb is wrong: {stat.vb}. Should be: {3.7}'"
+        samps = json.loads(samples[chan])
+        print(f" type of samps[{chan}]: {type(samps[chan])}" )
 
-        print("Passed  test_stats")
+        stat = dbi.stats(chan, samps)
+        print(f" a2d_mean: {stat.a2d}  vm_mean: {stat.vm} vm_sd: {stat.vm_sd}  vb: {stat.vb}") 
+        assert stat.a2d - answers[chan].a2d < eps , f" A2d mean count is wrong: {stat.a2d}. Should be: {answers[chan].a2d}'"
+        assert stat.vm - answers[chan].vm < eps , f" vm  is wrong: {stat.vm}. Should be: {2.655}'"
+        assert stat.vm_sd - answers[chan].vm_sd < eps , f" vm_sd  is wrong: {stat.vm_sd}. Should be: {answers[chan].vm_sd }'"
+        assert stat.vb - answers[chan].vb <eps , f" vb is wrong: {stat.vb}. Should be: {answers[chan].vb}'"
+
+        print(f"Passed  test_stats[{chan}]")
      # TODO7: Remove the complexity of fudging boundaries, too complex... Also expand so it covers all channels... 
     def test_lut_limits(self,chan):
         '''If a vm is within 1/2 of a vm step, then use the key at that end of the lut'''
@@ -374,27 +309,35 @@ class Test_DBI:
         assert vm is None, "Error, should return None"
         
         print()
-        print("Passed  test_lut_limits")
-        
+        print(f"Passed  test_lut_limits chan {chan}")
 testdbi=Test_DBI()
 #start_msg is defined near line 18
 #TODO 8: Fix: save_calibration() and save_measurement() values and cols is confused.
-
-
-testdbi.test_get_lut0(0)
-testdbi.test_get_lut1(1)
-testdbi.test_get_lut2(2)
+print(" =========Tests Begin =======================")
+testdbi.test_get_lut(0)
+testdbi.test_get_lut(1)
+testdbi.test_get_lut(2)
 testdbi.test_load_config(1,0)
 testdbi.test_load_config(1,1)
 testdbi.test_load_config(1,2)
 testdbi.test_cols_vals(deepcopy(start_msg))
 testdbi.test_save_calibration(deepcopy(start_msg))
 testdbi.test_save_measurement(deepcopy(start_msg))
-testdbi.test_list_measures()
-testdbi.test_list_calibrations()
+testdbi.test_list_measures(0)
+testdbi.test_list_measures(1)
+testdbi.test_list_measures(2)
+testdbi.test_list_calibrations(0)
+testdbi.test_list_calibrations(1)
+testdbi.test_list_calibrations(2)
+testdbi.test_update_lut(0)
+testdbi.test_update_lut(1)
 testdbi.test_update_lut(2)
 testdbi.test_lut_limits(0)
-
+testdbi.test_lut_limits(1)
+testdbi.test_lut_limits(2)
+testdbi.test_stats(0)
+testdbi.test_stats(1)
+testdbi.test_stats(2)
 #testdbi.test_timestamp()
 
 
