@@ -118,25 +118,28 @@ class Test_DBI:
    
      #TODO 1 : DONE: Fix the BMS namedtuple so last record is interpreted correctly...
      #TODO 2: DONE: The BMS is scrambled. Find out why. Look at test.dbi.save_calibration outputs. timestamp and cfg_id are swapped.
-     #TODO 4: DONE. 3/11/26: Finish calibration test. BMS and A2D tables are new or restructured...
-    def test_save_calibration(self, msg):
+     #TODO 4: DONE. 3/11/26: Finish calibration test. BMS and A2D tables are new or restructured
+ 
+    def test_save_to_bms(self, msg, atype):                # test calibration.
         print("===================")
-        print("testing save_calibration()")
-        msg['PURPOSE']=201   # add back in for test
-        msg["CHAN"]=1            # add back in for test
+        chan = msg["CHAN"]
+        msg["TYPE"]=atype
+        if atype =='c':
+            # update start_message to be a calibration...
+            msg['PURPOSE']=201   # add back in for test
+        elif atype == 'm':
+            # update start_message to be a measurement...
+            msg['PURPOSE']=101 
+        print(f"testing save_to_bms() for a record of type {atype} on chan: {chan}")
+        # everything else should be the same...
         msg["SENDER_ID"]="adc"           # add back in for test
-        msg["MSGID"]= 5010
-        msg["VERSION"]=3
-        msg['DISCARD_SZ']=2
-        msg['SAMP_SZ'] = 64
-        msg["KEEP_SZ"]= 62
-        ts= dbi._timestamp()
+        ts= dbi._timestamp()             # for tests use the timestamp of the dbi to allow user to verify recent saves.
         msg['TIMESTAMP']=ts
-        msg['TYPE']='c'
-        #save to db
-        cols, vals = dbi.save_calibration(msg)
-         #read from db
-        records = dbi.list_calibrations(1)
+        print(f"msg to save: {msg}")
+        #save a record to to db table bms...
+        dbi.save_to_bms(msg)
+        #read from db to check for last record.
+        records = dbi.list_records(1, atype)
         print(f" len(records) : {len(records)}")
         lenc= len(records)
         if lenc < 1:
@@ -144,56 +147,17 @@ class Test_DBI:
             print("Failed")
         else:
             last_record = BMS(*records[-1])
-            print(f" type (last_record): {type(last_record)}")
+            #print(f" type (last_record): {type(last_record)}")
             print(f" Last Record : {last_record}")
-            print(f" msg.vm: {msg['VM_MEAN'] }  type: {type(msg['VM_MEAN'])}")
-            assert last_record.TYPE == 'c' , f" Wrong type: {last_record.TYPE } is not 'c'  "
+            #print(f" msg.vm: {msg['VM_MEAN'] }  type: {type(msg['VM_MEAN'])}")
+            assert last_record.TYPE ==atype , f" Wrong type: {last_record.TYPE } is not 'atype'  "
             last_record.VM_MEAN   == msg["VM_MEAN"], f"vm is different from input to saved record {last_record.VM_MEAN}"
             assert ts == last_record.TIMESTAMP , f" Timestamp of record: {last_record.TIMESTAMP} differs from ts {ts}"
-            print("Passed  test_save_calibration")
 
-
-    def test_save_measurement(self,msg):
-        global start_msg
-        print("start_msg: ", start_msg)
+    def test_list_records(self,chan, atype):
         print("===================")
-        print("testing save_measurement()")
-        chan=msg["CHAN"]
-        msg["TYPE"]='m'
-        msg["MSGID"]= 5010
-        msg["VERSION"]=3
-        msg['DISCARD_SZ']=2
-        msg['SAMP_SZ'] = 64
-        msg["KEEP_SZ"]= 62
-        msg['PURPOSE']=101   # add back in for test
-        msg['SENDER_ID']="adc_client"   # add back in for test
-        msg['VM_MEAN']=2.669375
-        if "bms_id" in msg: msg.pop("bms_id")
-        ts= dbi._timestamp()
-        msg['TIMESTAMP']=ts
-        # save to db
-        print(f"save_measurement msg: {msg}")
-        cols,vals = dbi.save_measurement(msg)
-        # read from db
-        records = dbi.list_measurements(chan)
-        lenm = len(records)
-        eps = 1e-6
-        if lenm <1:
-            print("no records")
-            print("Failed")
-        else:
-            print(f" len(records) {len(records)}")
-            last_record = BMS(*records[-1])     # this is creating errors b ecause the BMS order is not used correctly
-           # print(f" Last Record : {last_record}")
-            print(f" Last Record : {last_record}")
-            assert  last_record.VM_MEAN - msg['VM_MEAN']  < eps, f" Vm: {last_record.VM_MEAN} is not  equal to: {msg.VM_MEAN}"
-            assert last_record.TIMESTAMP == ts, f" Timestamp is wrong.  {last_record.TIMESTAMP} differs from ts : {ts}"
-            print( "Passed  test_save_measurement")
-
-    def test_list_calibrations(self,chan):
-        print("===================")
-        print(f"testing list_calibrations({chan})")
-        records = dbi.list_calibrations(chan)
+        print(f"testing list_records({chan})")
+        records = dbi.list_records(chan)
         lenc=len(records)
         print(f"Number of calibration records on chan {chan}: {lenc} ")
         if lenc > 1:
@@ -201,13 +165,13 @@ class Test_DBI:
             last_record = BMS(*records[-1])
             #print(f" records[-1]: {records[-1]}")
             assert last_record.TYPE == 'c' , f" type: {last_record.type} is not 'c'"
-        print(f"Passed test_list_calibrations on chan: {chan}")
+        print(f"Passed test_list_records on chan: {chan}")
         
   
-    def test_list_measures(self, chan):
+    def test_list_records(self, chan, atype):
         print("===================")
-        print(f"testing list_measures() on chan {chan}")
-        records = dbi.list_measurements(chan)
+        print(f"testing list_records() on chan {chan}")
+        records = dbi.list_records(chan, atype)
         lenm=len(records)
         if lenm < 1:
             print( "no records")
@@ -216,10 +180,10 @@ class Test_DBI:
             print(f"records:  {records}")
             last_record = BMS(*records[-1])
             #print(f" records[-1]: {records[-1]}")
-            assert last_record.TYPE == 'm' , f" Type: {last_record.type} is not 'm'"
+            assert last_record.TYPE == atype , f" Type: {last_record.type} is not {atype}"
             print(f"Number of measurement records: {lenm} ")
 
-            print(f"Passed  test_list_measures on chan: {chan}")
+            print(f"Passed  test_list_records on chan: {chan}")
 
     def test_update_lut(self, chan):
         print("===================")
@@ -279,6 +243,15 @@ class Test_DBI:
 
         print(f"Passed  test_stats[{chan}]")
      # TODO7: Remove the complexity of fudging boundaries, too complex... Also expand so it covers all channels... 
+
+    def test_a2d_bms_sync(self):
+        '''ensure that the last A2d record  has bms_id = bms.id of last bms record '''
+        print("======================")
+        print("Testing bms.id sync with A2D.bms_id")
+        bms_id, a2d_bms_id = dbi.check_bms_id_in_a2d()
+        assert bms_id ==a2d_bms_id, f"The a2d.bms_id {a2d_record[1]} should equal bms.id {bms_record[0]}"     
+        print("Passed test:  test_a2d_bms_sync")
+        
     def test_lut_limits(self,chan):
         '''If a vm is within 1/2 of a vm step, then use the key at that end of the lut'''
         print("===================")
@@ -321,14 +294,14 @@ testdbi.test_load_config(1,0)
 testdbi.test_load_config(1,1)
 testdbi.test_load_config(1,2)
 testdbi.test_cols_vals(deepcopy(start_msg))
-testdbi.test_save_calibration(deepcopy(start_msg))
-testdbi.test_save_measurement(deepcopy(start_msg))
-testdbi.test_list_measures(0)
-testdbi.test_list_measures(1)
-testdbi.test_list_measures(2)
-testdbi.test_list_calibrations(0)
-testdbi.test_list_calibrations(1)
-testdbi.test_list_calibrations(2)
+testdbi.test_save_to_bms(deepcopy(start_msg),'c')                #calibrations
+testdbi.test_save_to_bms(deepcopy(start_msg),'m')     # measurements
+testdbi.test_list_records(0, 'm')
+testdbi.test_list_records(1, 'm')
+testdbi.test_list_records(2, 'm')
+testdbi.test_list_records(0,'c')
+testdbi.test_list_records(1,'c')
+testdbi.test_list_records(2,'c')
 testdbi.test_update_lut(0)
 testdbi.test_update_lut(1)
 testdbi.test_update_lut(2)
@@ -338,6 +311,7 @@ testdbi.test_lut_limits(2)
 testdbi.test_stats(0)
 testdbi.test_stats(1)
 testdbi.test_stats(2)
+testdbi.test_a2d_bms_sync()
 #testdbi.test_timestamp()
 
 
