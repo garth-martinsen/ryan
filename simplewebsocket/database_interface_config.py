@@ -9,7 +9,7 @@ CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_ID', 'APP_DESC', 'CHAN', 'CHAN_DESC', '
 Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #19 fields
 
 Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
-BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
+BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
 
 BMS = namedtuple("BMS", BMS_FIELDS )   #16 fields 6/4/2026
 # LUTS schema: ID  | app_id | chan |   vm   | vin  | version 
@@ -28,25 +28,35 @@ db_path =   '/Users/garth/DEV/ryan/sqliteDB/rt_db'
 
 #message purposes: note that responses from the db or adc will have 1 added to rqst code, eg : 100 -> 101 etc.
 purposes = dict()
-purposes[100]='request_measure'                      #all chans 
+purposes[100]='request_measure'                      #all chans ; will result in (3) 101s
 purposes[101]='response_measurement'
-purposes[150]= 'past_measurements_0'            #chan 0
-purposes[152]= 'past_measurements_1'           #chan 1
-purposes[154]= 'past_measurements_2'           #chan 2
+purposes[150]= 'request past_measurements_0'            #chan 0
+purposes[151]='response past_measurements_0'
+purposes[152]= 'request past_measurements_1'           #chan 1
+purposes[153]='response past_measurements_1'
+purposes[154]= 'request past_measurements_2'           #chan 2
+purposes[155]='response past_measurements_2'
 purposes[175]='set_up_periodic_measurements'
 purposes[200]='request_calibrate_0'
-purposes[201]='response_calibration'
+purposes[201]='response_calibration_0'
 purposes[202]='request_calibrate_1'
 purposes[203]='response_calibration_1'
-purposes[204]='request_calibrate_1'
+purposes[204]='request_calibrate_2'
 purposes[205]='response_calibration_2'
 purposes[250]='request_past_calibrations_0'
+purposes[251]='response past_calibrations_0'
 purposes[252]='request_past_calibrations_1'
+purposes[253]='response past_calibrations_1'
 purposes[254]='request_past_calibrations_2'
+purposes[255]='response past_calibrations_2'
 purposes[300]= 'save_config'
-purposes[310]= 'request_config'
-purposes[311]= 'response_config'
-purposes[350]= 'save_lut'
+purposes[310]= 'request_config chan(0)'
+purposes[311]= 'response_config chan(0)'
+purposes[312]= 'request_config chan(1)'
+purposes[313]= 'response_config chan(1)'
+purposes[314]= 'request_config chan(2)'
+purposes[315]= 'response_config chan(2)'
+purposes[350]= 'update_lut'                                #id, version , chan, vm, vin  embedded in json
 purposes[360]= 'request_lut_0'
 purposes[361]= 'responselut_0'
 purposes[362]= 'request_lut_1'
