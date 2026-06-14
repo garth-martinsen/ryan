@@ -27,10 +27,16 @@ class DatabaseInterface:
         self.lut_timestamps:List[str] = ["","",""]
         self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
         self.msg = ""
+       # TODO 9: should not set atype, bms_id in __init__ . Need to move dict or something...
+        #atype="m"
+        #bms_id=6
         cmds= dict()
-        cmds['150']=self. list_measurements( 0)
-        cmds['152']=self. list_measurements( 1)
-        cmds['154']=self. list_measurements( 2)
+#         cmds['150']=self. list_records( 0, atype)
+#         cmds['152']=self. list_records( 1, atype)
+#         cmds['154']=self. list_records( 2, atype)
+#         cmds['156'] =self.get_a2d_samples(0, bms_id)
+#         cmds['158']=self.get_a2d_samples(1, bms_id)
+#         cmds['160']=self.get_a2d_samples(2, bms_id)
         cmds['310']=self.load_config(self.app_id,0,self.version)
         cmds['312']=self.load_config(self.app_id,1,self.version)
         cmds['314']=self.load_config(self.app_id,2,self.version)
@@ -60,7 +66,7 @@ class DatabaseInterface:
         """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS. Note: for hour, min, sec less than 10, must have leading zero eg: 09:05:07"""
 #        dt = time.localtime()
 #      return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[3]}:{dt[4]}:{dt[5]}"  # YYYY-MM-DD  HH:mm:sec (dt[6] dow , dt[7] julian)
-        return  time.strftime('%X %x')
+        return  time.strftime(' %X %x ')
 
     
     
@@ -124,7 +130,7 @@ class DatabaseInterface:
         self.cx.isolation_level = None
         #self.cx.row_factory = self._Config_namedtuple_factory
         cu = self.cx.cursor()
-        select_str = f"SELECT * FROM CONFIG where  app_id = {aid} and chan = {chan} and version_id = {version};"
+        select_str = f"SELECT * FROM CONFIG where  app_id = {aid} and chan = {chan} and version = {version};"
         print("select_str: ", select_str)
         # Each row is a channel.
         for row in cu.execute(select_str):
@@ -145,87 +151,47 @@ class DatabaseInterface:
         insert_str = insert_str.replace("[", "'[")
         insert_str = insert_str.replace("]", "]'")
         return insert_str
-
-    def save_measurement(self, message):
-        """Use the values in msg to populate values in insert statements. Saves to BMS table, then saves samples in A2D table keyed on bms_id ."""
-        # msg is a dict for Battery Management System (bms) . it is from the adc_client
-        # print("Called dbi.save_measurement(). Saving msg to database...", bms)
-        # create correct insert_str:  stringify keep, end with semicolon, ;.
-        print(f" save_measurement(...) ~ li 139 type (message): {type(message)}  message: {message} ")
-        msg=message   #already passed thru json.loads()...
-        print(f" after json.loads():  msg.type: {type(msg)}  ")
-        msg["TYPE"] = "m"
-        ts = self._timestamp()
-        msg["TIMESTAMP"] = ts
-        data= msg['SAMPLES']
-        chan = msg["CHAN"]
-        stats = self.stats(chan, json.loads(data))
-        print(f"Stats from samples: {stats}")
-        # add stats fields to the msg...
-        msg[ 'A2D_MEAN']=stats.a2d
-        msg['VM_MEAN'] = stats.vm
-        msg['VM_SD'] = stats.vm_sd
-        msg[ 'VB'] = stats.vb
-        vin=0    #vin is unknown so set to zero. This will cause error to equal -Vb.
-        error=round((vin - stats.vb), 5)
-        msg["ERROR"] = error
-        msg["VIN"]=vin
-        cols, vals = self._create_cols_vals(msg)
-        print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
-        insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "
-        #insert_str = self._format_insert(insert_str)
-        print(f" insert_str: {insert_str}")
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
-        cu.execute(insert_str)
-        self.cx.commit()
-        return (cols, vals)
     
-    def save_calibration(self, msg):
-        """saves record in the BMS table ( the type column will show 'c') and then saves samples in A2D table keyed on bms_id .'"""
-        # msg will hold BMS values  and DATA.  BMS part will be stored in BMS table, Data part will be stored in A2D table with same timestamp and bms_id
-        msg["TYPE"] = "c"
-        ts = self._timestamp()
-        msg["TIMESTAMP"] = ts
-        print(f"msg before pop: {msg}")
-        data= msg['SAMPLES']
+    def save_to_bms(self , msg):
+        ''' Saves summary fields for both types ['m','c'] to the same database table, bms.Summary fields are :
+ (ID | MSGID | VERSION | TIMESTAMP | TYPE | CHAN | A2D_MEAN | VM_MEAN |  VM_SD  |  VB  | VIN  |  ERROR  | SAMP_SZ | DISCARD_SZ | KEEP_SZ ).
+ Also Saves the A2D samples embedded in msg to the A2D table with the bms_id to link the two tables.A2D Fields are: ( ID | BMS_ID | SAMPLES). where samples is a string
+holding 64 int sample values. This can be expanded in length to have 128 samples etc.
+arg msg is a dict loaded by ADC  with raw data and augmented by Server with  computations.
+ json is used to convert from string dict. '''
+       
+        atype = msg["TYPE"]
+        samples = msg.pop("SAMPLES")
+        timestamp = msg['TIMESTAMP']  # this is from the ADC timestamp.
         chan = msg["CHAN"]
-        
-        stats = self.stats(chan, json.loads(data))
-        print(f"Stats from samples: {stats}")
-        #print(f"msg after pop: {msg}")
-        #push values computed from data into the tuple for db, msg   
-        msg[ 'A2D_MEAN']=stats.a2d
-        msg['VM_MEAN'] = stats.vm
-        msg['VM_SD'] = stats.vm_sd
-        msg[ 'VB'] = stats.vb
-        vin=msg["VIN"]
-        error=round((vin - stats.vb), 5)
-        msg["ERROR"] = error
-        cols, vals = self._create_cols_vals(msg)
-        print(f" cols: {cols} vals: {vals}")
-        insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}  "
-        print(f" insert str: {insert_str}")
+        vin = msg["VIN"]
+        cols, vals = self._create_cols_vals(msg)      #should only contain the summary fields.
+        print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
+        bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "
+
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        cu.execute(insert_str)
+        cu.execute(bms_insert_str)
+        res = cu.execute('select max(id) from bms')
+        bms_id=  res.fetchone()[0]
+        print(f"bms_id: {bms_id}")
+        a2d_insert_str = f"insert into A2D values(NULL, {bms_id}, '{samples}')"
+        print(f"a2d_insert_str: {a2d_insert_str}")
+        cu.execute(a2d_insert_str)
         self.cx.commit()
         return (cols, vals)
-        
-        '''
-ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,ADC_FSR,ADC_STEPS,ADC_SAMPLE_RATE,C1,R1,R2,VD_FRACT,LUT_CALIBRATED,LUT_TS
+ '''
+ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION,VERSION_DESC,TIMESTAMP,TEMPC,ADC_FSR,ADC_STEPS,ADC_SAMPLE_RATE,C1,R1,R2,VD_FRACT,LUT_CALIBRATED,LUT_TS
 5,GM,1,Development    ,0,3-4.5V circuit chan(0),3,PCB2,2026-6-02_18:44:20:00,25.4,4.096,32768,64,1.0e-07,101100.0,303700.0,0.750247035573123,0,2026-6-02_18:44:20:00
 6,GM,1,Develop    ment,1,6-9V circuit chan(1),3,PCB2,2026-6-02_18:44:20:00,25.4,4.096,32768,64,1.0e-07,222200.0,111800.0,0.334730538922156,0,2026-6-02_18:44:20:00
 7,GM,1,Developmen    t,2,9-13.5 V circuit chan(2),3,PCB2,,2026-6-02_18:44:20:00,25.4,4.096,32768,64,1.0e-07,301400.0,100700.0,0.250435215120617,0,2026-6-02_18:44:20:00
-'''
-  
-  
-    def list_measurements(self, chan):
-        ''' Returns a list<records>.'''
+''' 
+    def list_records(self, chan, atype):
+        ''' Returns a list<records> of type atype.'''
         records = []
-        select_str = f" select * from BMS where type = 'm' and chan={chan};  "
+        select_str = f" select * from BMS where chan={chan} and type = '{atype}' ;  "
+        print(f"select _str: {select_str}")
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
        # self.cx.row_factory = self._BMS_namedtuple_factory
@@ -234,54 +200,37 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
             records.append(row)
         return records
     
-    def list_calibrations(self,chan):
-        records = []
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-       # self.cx.row_factory = self._BMS_namedtuple_factory
-        cu = self.cx.cursor()
-        select_str = f"select * from BMS where type = 'c' and chan={chan};"
-        #print("select_str: ", select_str)
-        # Each row is a record.
-        for row in cu.execute(select_str):
-            # print("row: ", row)
-            records.append(row)
-        return records
 
-#     def store_samples(self, bms_id:int, a2d_samples:list[int]):
-#         '''stores a2d_samples into Samples Table, keyed by the bms_id'''
-#         samps = json.dumps(a2d_samples)
-#         insert_str = f"insert into SAMPLES values (NULL, bms_id = {bms_id}, a2d ={samps});"
-#         print("insert_str: ", insert_str)
-#         self.cx = sqlite3.connect(self.db_path)
-#         self.cx.isolation_level = None
-#         cu = self.cx.cursor()
-#         cu.execute(insert_str)
-#         self.cx.commit()
-#         return last_id
-
-    def get_samples(self, bms_id):
-        ''' retrieves the a2d samples as a list from table BMS in order to compute m, sd...'''
+    def get_a2d_samples(self, bms_id):
+        ''' retrieves the a2d samples as a list from tableA2D in order to analyze sample problems'''
         records=[]
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
-        #self.cx.row_factory = self._LUT_namedtuple_factory
         cu = self.cx.cursor()
-        select_str = f"select a2d from BMS where bms_id = {bms_id};"
+        select_str = f"select samples from A2D where bms_id = {bms_id};"
         print("select_str: ", select_str)
         for row in cu.execute(select_str):
             records.append(row)
         lst=list(records[0])
         a2d=json.loads(lst[0])
         return a2d
-     
+ 
+    def get_lut_row(self, chan, vm):
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        cu = self.cx.cursor()
+        select_str = f"select id,vm,vin, version from luts where chan = {chan} and version= {self.version} and vm={vm};"
+        # print("select_str: ", select_str)
+        res = cu.execute(select_str)
+        return res.fetchone()
+        
     def get_lut(self, chan,version):
         records=[]
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         #self.cx.row_factory = self._LUT_namedtuple_factory
         cu = self.cx.cursor()
-        select_str = f"select vm,vin from luts where chan = {chan} and version= {self.version};"
+        select_str = f"select id,vm,vin from luts where chan = {chan} and version= {self.version};"
         print("select_str: ", select_str)
         for row in cu.execute(select_str):
             records.append(row)
@@ -292,7 +241,7 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        select_str = f"select LUT_TS from CONFIG where chan={chan} and version_id={self.version}";
+        select_str = f"select LUT_TS from CONFIG where chan={chan} and version={self.version}";
         res= cu.execute(select_str)
         timestamp = res.fetchone()[0]
         print(timestamp)
@@ -311,30 +260,29 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
        
  
     
-     #TODO 2: Implement and Test update_lut(...)
-    def update_lut(self, msg, version):
-        '''TBD... msg will hold lut,  id'''
-        print(f"lut update msg: {msg}")
-        chan=msg["chan"]
-        lut = str(msg["LUT"])
+     #TODO 2: Implement and Test update_lut_vin(...)
+    def update_lut_pair(self, chan, _id, vm, vin):
+        '''updates a single vin value for a given id'''
         ts = self._timestamp()
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        cfg_update_str = f" UPDATE Config  set LUT_TS ='{ts}' where chan ={chan} and version_id = {version};"
-        lut_update_str = f"Update LUTS set vm= "
+        cfg_update_str = f" UPDATE Config  set LUT_TS ='{ts}' where id = {_id};"
+        lut_update_str = f"Update LUTS set vm={vm} , vin={vin} where id={_id} "
         print("cfg_update_str: ", cfg_update_str)
         cu.execute(cfg_update_str)
+        cu.execute(lut_update_str)
         self.update_lut_timestamp(chan, self.version)
         self.cx.commit()
 
     
     #TODO 5: Copy lut_as_od to the gui_client.py module if cannot send od across the wire.
     def lut_as_od(self, chan, lut):
-        '''lut is any of lut0, lut1, lut2 and is a list of str. This method uses re to findall stings which are decimal numbers.
+        '''lut is any of lut0, lut1, lut2 and is a list of str. This method uses re to findall strings which are decimal numbers.
         Method takes in list returned by db, converts it into an OrderedDict... and stores it in luts[chan]'''
         vm=[]
         vin=[]
+        _id=[]
         cnt=0
         p=re.compile('\\d+\\.\\d+')  # pattern is one or more digits, a decimal point, one or more digits eg: 2.345
         lst=p.findall(str(lut))  # l is list of str( decimal number)
@@ -352,7 +300,8 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
         print(f" od: {od}")
         self.luts[chan]=od
         return od
-   
+ 
+ # TODO 10: stats() method should be implemented elsewhere...
     def stats(self, chan:int, samples:list[int]):
         ''' Computes m,sd,vm,vb, from  samples and Returns a Stats namedtuple'''
         print(f"type(samples): {type(samples)} ")
@@ -370,7 +319,7 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
     def matchesboundary(self, chan:int, vm:float, version:int) :
         '''Returns tuple(vm, lut). Vm is None if outside of allowed boundary limits, Returns vm if vm is within tol of first or last key. tol is 1/2* vinstep * vd_fract'''
      
-     #TODO 7: Remove the tolerance on border vms, too complex. Just enforce the actual boundaries.
+     #TODO 7: DONE:  Remove the tolerance on border vms, too complex. Just enforce the actual boundaries.
         lut=self.luts[chan]
         keys = list(lut.keys())
         minkey = keys[0]
@@ -395,7 +344,7 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
                 #passed in vm is inside of lut boundaries so it can be interpolated.
                 vmr = vm
         return (vmr, lut)
-            
+     #TODO 11: lookup_chan_vm() should be implemented elsewhere...       
     def lookup_chan_vm(self,  chan:int, vm:float):
         '''Given any legitimate value for vm (measured voltage) in a channel, chan,  return the estimate of vb (battery voltage), using interpolation.
         First  if vm is close enough to a boundary key, returns lut[boundary_key], then if vm is out of bounds, prints error statementand returns None,
@@ -418,14 +367,29 @@ ID,OWNER,APP_ID,APP_DESC,CHAN,CHAN_DESC,VERSION_ID,VERSION_DESC,TIMESTAMP,TEMPC,
         print(f"\tvlo: {vlo}, vm: {vm}, vhi: {vhi}")
 
         # --- Interpolation ---
-        fract = (vm - vlo) / (vhi - vlo)
-
+        fract = (vm - vlo) / (vhi - vlo)     #fraction of the way from vm_lo to vm_hi
         vbhi = lut[vhi]
         vblo = lut[vlo]
-
-        vb = round(vblo + fract * (vbhi - vblo), 4)
+        vb = round(vblo + fract * (vbhi - vblo), 4)      # vb= vin_low + fract * (vin_hi -  vin_lo)
 
         return vb
-    
+
+    def check_bms_id_in_a2d(self):
+        '''Returns the id of the last bms record and the bms_id of the last A2D record. Good to ensure sync.'''
+        a2d_select_str='select max(bms_id)  from A2D'
+        bms_select_str = 'select max(id) from BMS'
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        cu = self.cx.cursor()
+        print(f"a2d_select_str: {a2d_select_str}")
+        print(f"bms_select_str: {bms_select_str}")
+        res=cu.execute(a2d_select_str)
+        bms_id = res.fetchone()[0]
+        res=cu.execute(bms_select_str)
+        _id = res.fetchone()[0]
+        print(f"Returning bms.id = {_id} and a2d.bms_id = {bms_id}")
+        return (_id, bms_id) 
+        
+        
 
         
