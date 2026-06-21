@@ -1,0 +1,81 @@
+This is a python3  directory. It holds code for the Gui_async_client.
+
+The code here may be run in a host terminal with virtual environment, python3.
+Gui_async_client's purpose is to respond to User inputs to generate messages with commands to the Server and the Adc_async_client,
+Gui_async_client will  display information from both to the User. 
+User will see info on the status of a 3-pack of 18650 Lithium Ion battery cells.
+Voltage taps on the cells provides three channels: One cell, Two cells, Three cells.
+The server and/or the Gui_async_client can compute the voltages for each of the three by subtraction of the voltage measurements.
+The Gui_async_client commands are listed in the table below.
+There may be many hosts that perform the Gui_async_client functions: mobile, desktop, laptop, etc.
+The Server receives the commands via asyncio from the Gui_asyncio_client and forwards them to Adc_async_client.
+Upon receiving the report back from the Server, the  Gui_async_client displays the information  to the user.  
+Then it sends via asyncio_connection a message to the Server in which is embedded the cmd attributes.
+A measurment command (100) will result in 3 measurement reports, each with voltage measurements for ( One cell , Two Cells, Three Cells)
+A calibration command(200) will be for a single channel and will contain the Truth value, called "vin" for input voltage . 
+A calibration command will result in one calibration_report(201) msg sent to the Server with "vin" embedded along with normal samples and neccesary fields.
+For the Start_Periodic cmd,  Gui_async_client will pass two attributes thru the Server to the Adc_async_client, Start_Periodic.period and Start_Periodic.repetitions.
+A measurement(100) and a calibration(200) command will vary in three ways: the type ('m','c') and vin = [0, truthValue], where 'm' means measure and 'c' means calibrate and calibration is chan specific.
+The time between cmd and response is estimated to be ~5 seconds.
+A small amount of time will be expended in translating incoming msgs and formatting outgoing messages.
+The Gui_async_client will allow the User to update database tables as needed.
+Reports from the Server on database tables will include the id to facilitate updates.
+Many apps can be run on this system, the app_id will allow the tables to respond to app_id and version.
+The Configuration of the App will be versioned. 
+The Gui_async_client will set app_id, and version so that tables are in sync with the current configuration.
+
+Summary:
+1. Code must run in python3 to allow for larger frameworks in virtual environments.
+2. Client must be able to issue cmds and receive reports via json and asyncio
+3. User must embed "CODE" and "ARGSLIST", [...], for some dbi calls. 
+4. Future work could allow Gui_async_client to specify changes in the number of samples, sample_rate, etc, but is frozen for now.
+5. Process latency estimated to be less than 5 seconds.
+6. Msg sizes must be less than 1kb.
+
+
+
+
+Commands that the Gui_async_client can send. These may change as needed. They may be simplified.
+
+cmd[100]='request_measure'                      #all chans ; will result in (3)reports 101s
+cmd[101]='response_measurement'
+cmd[150]= 'request past_measurements_0'            #chan 0
+cmd[151]='response past_measurements_0'
+cmd[152]= 'request past_measurements_1'           #chan 1
+cmd[153]='response past_measurements_1'
+cmd[154]= 'request past_measurements_2'           #chan 2
+cmd[155]='response past_measurements_2'
+cmd[175]='set_up_periodic_measurements'
+cmd[200]='request_calibrate_0'
+cmd[201]='response_calibration_0'
+cmd[202]='request_calibrate_1'
+cmd[203]='response_calibration_1'
+cmd[204]='request_calibrate_2'
+cmd[205]='response_calibration_2'
+cmd[250]='request_past_calibrations_0'
+cmd[251]='response past_calibrations_0'
+cmd[252]='request_past_calibrations_1'
+cmd[253]='response past_calibrations_1'
+cmd[254]='request_past_calibrations_2'
+cmd[255]='response past_calibrations_2'
+cmd[300]= 'save_config'
+cmd[310]= 'request_config chan(0)'
+cmd[311]= 'response_config chan(0)'
+cmd[312]= 'request_config chan(1)'
+cmd[313]= 'response_config chan(1)'
+cmd[314]= 'request_config chan(2)'
+cmd[315]= 'response_config chan(2)'
+cmd[350]= 'update_lut'                                #id, version , chan, vm, vin  embedded in json
+cmd[360]= 'request_lut_0'
+cmd[361]= 'responselut_0'
+cmd[362]= 'request_lut_1'
+cmd[363]= 'response_lut_1'
+cmd[364]= 'request_lut_2'
+cmd[365]= 'response_lut_2'
+cmd[370]= 'request_lut0_timestamp'
+cmd[371]= 'response_lut0_timestamp'
+cmd[372]= 'request_lut1_timestamp'
+cmd[373]= 'response_lut1_timestamp'
+cmd[374]= 'request_lut2_timestamp'
+cmd[375]= 'response_lut2_timestamp'
+

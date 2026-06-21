@@ -1,0 +1,215 @@
+# file: svr_msg_processor.py  Offloads most of the work from the bms_async_server:  routes msgs,
+# returns json-worthy, correct namedtuple. The bms_async_server has requirements: 1. manage client connections,
+# 2. receive json msgs,  restore python objects by json.loads(...), 2. delegate msg_processing to svr_msg_processor ,3.. send json-appropriate msgs to
+# correct async_client.
+from database_interface import DatabaseInterface
+import json
+from database_interface_config import Config, BMS
+import math
+
+class SvrTaskManager:
+    ''' Handles all msg processing and task_creation for the bms_async_svr event_loop, leaving only
+       event_loop, receive, send functions to the server. Database related tasks need access to the
+       database_interface (dbi), which is initialized with the app_id and version. Assumption: I can
+       pass in args: event_loop, clients dict, msg, use them to create tasks on the event_loop, which
+       will schedule and run the tasks.'''
+
+    def __init__(self, app_id, version):      # removed , svr from argslist
+        self.version=version
+        self.app_id = app_id
+        #self.svr = svr
+        self.clients = {}
+        self.dbi = DatabaseInterface(app_id, version)
+        self.load_vd_fracts()
+        self.load_luts()
+        self.load_config()
+        self.load_functions_dict()
+        
+        
+    def load_functions_dict(self):
+        functions_dict  = dict()
+       # functions_dict[101]= self.compute_store_send                 # ([msg, receiver, ])
+        #functions_dict[201]= self.compute_store_send                 # ([msg, receiver, ])
+        self.functions_dict = functions_dict
+       
+    def load_config(self):
+        cfg = self.dbi.load_config(0)
+        # cfg=CFG.Config(*cfg0)
+        #print(f"config0: {cfg}")
+        #TODO 1: Put a column in Config schema for K_FACTOR, ( keep a2d samples with abs(x-m) < k*sd )
+        self.k=3.0
+        FSR=cfg[0].ADC_FSR
+        STEPS = cfg[0].ADC_STEPS
+        self.lsb = FSR/STEPS
+ 
+    def adc_setup_periodic(self, functions_dict, argslist):
+        print("Not yet implemented TBD")
+     
+    def load_luts(self):
+        luts=[]
+        luts.append(self.dbi.get_lut(0))
+        luts.append(self.dbi.get_lut(1))
+        luts.append(self.dbi.get_lut(2))
+        self.luts=luts
+        
+    def load_vd_fracts(self):
+        self.vd_fracts = self.dbi.get_vd_fracts()               
+
+    async def send_to_client(self, name, msg, clients):
+        print(f"sending msg to {name} client. msg: {msg}")
+        writer=clients[name]
+        msgj=json.dumps(msg) + "\n"
+        print("msgj: ", msgj)
+        writer.write(msgj.encode())
+        await writer.drain()
+        
+    async def call_function( self, code, argslist, msg):
+        print(f" code: {code}   function: {self.functions_dict[code].__name__} argslist: {argslist}")
+        await self.functions_dict[code]( *argslist, msg )
+        
+    async def adc_calibrate(self):
+        '''Sends msg from GUI_client, along with MSGID to ADC_client. msg includes: vin, type='c', chan'''
+        await self.send_to_client("ADC", msg, clients)
+  
+    async def adc_measure(self):
+        '''Sends msg from GUI_client, along with MSGID to ADC_client. '''
+        await self.send_to_client("ADC", msg, clients)
+  
+
+    async def create_and_schedule_tasks (self, loop, msg, clients ):
+        '''Based on receiver, sender and code fields, route msg to a method where it can be processed.
+          The tasks will be to perform async methods including send_to_client(...) '''
+        print(f"Entered method svr_task_mgr.create_and_schedule_tasks with msg of type:{type(msg)}")
+        try:
+            print(f"msg: {msg}")
+            code = int(msg["CODE"])
+            print("reached : hw 1")       
+            # codes: 100,175,200 ,with already embedded msigid are forwarded to the ADC_client with msg.
+            if code in [100,175,200]:
+                await self.send_to_client("ADC", msg, self.svr.clients)
+            if code in [101,201]:
+                response = await self.compute_stats(msg)
+                await self.send_to_client("GUI", response, self.svr.clients)
+              # all of the even codes > 300 will be tasked to the dbi and returned to the gui_client with code=code+1.
+            if code > 300 and code%2 == 0:
+                 arglist=msg["ARGLIST"]
+                 self.dbi.call_function(code, arglist)
+        except  Exception as e:
+            print("Error:", e)
+            print("file: " , e.__traceback__.tb_frame.f_code.co_filename)
+            print("line no: " , e.__traceback__.tb_lineno)
+        
+
+    def compute_stats(self, msg):
+        '''This method will extract the samples from msg, to use in computations. msg["samp_sz"] will equal
+          len(samples) . This method then computes a2d mean, sd, and use them to  discard outliers.
+          This will leave a new list of a2d samples called "keep". "KEEP_SZ"  will be len(keep)  and
+          DISCARD_SZ= SAMP_SZ - KEEP_SZ. The second pass will  compute a2d mean/sd
+          based on the keep samples.  vm_mean (a2d_mean*LSB) is used to lookup the value for vb.
+          If msg['type'] == 'c', (calibration) the msg embedded code will be 200  and will have embedded vin .
+          The error is computed (error = vin-vb)
+          Returns a BMS tuple with augmented values: a2d_mean, vm_mean, vm_sd, vb,vin, error,
+           "DISCARD_SZ", "KEEP_SZ  embedded. The entire BMS namedtuple is defined in
+           database_interface_config.py. Fields are:  BMS_FIELDS =
+           ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN",
+           "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ") '''
+        print(f"entered Server compute function with: the samples ,LSB: {self.lsb}, k: {self.k} , vd_fract: {self.vd_fracts}")
+        chan = msg["chan"]
+        samples=msg["samples"]
+        samp_sz=len(samples)
+        
+        vin = msg["vin"]
+        m=self.mean(samples)
+        #print("hw1")
+        vrs = [(x-m)*(x-m) for x in samples]
+        sd = math.sqrt(self.mean(vrs))
+        #print("hw2")
+        #discard outliers... may need to adjust k . To start, pass in k=3
+        keep = [x for x in samples if abs(x-m) < (sd*self.k)]
+        #print("hw3")
+        # final pass: do stats on keep instead of all samples
+        keep_sz=len(keep)
+        discard_sz = samp_sz - keep_sz
+        print(f"samp_sz: {samp_sz}  keep_sz: {keep_sz}  discard: {len(samples)- keep_sz}")
+       #print("hw4")
+        m = round(self.mean(keep), 4)
+        vrs =  [(x-m)*(x-m) for x in keep]
+        sd = math.sqrt(self.mean(vrs))
+        vm= round(m*self.lsb, 4)
+        #print("hw5")
+        vm_sd=round(sd*self.lsb, 8)
+        vb = round(vm/self.vd_fracts[chan], 4)
+        #print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
+        error = round((float(vin) - vb), 6)
+        #print("hw7")
+     
+        bms = BMS("", msg["msgid"], self.version, msg["timestamp"], msg["type"],
+                       chan, m, vm, vm_sd, vb, vin, error, samp_sz, discard_sz, keep_sz)
+        #print(f"bms:  {bms}")
+        #TODO  2: see if I can create a task to send bms msg to the ADC.
+        return bms
+    
+    def lookup_chan_vm(self,  chan:int, vm:float):
+        '''Given any legitimate value for vm (measured voltage) in a channel, chan,
+          Returns the estimate of  vb (battery voltage), using interpolation.
+          First  if vm is right on a boundary key, returns lut[boundary_key], then
+          if vm is out of bounds, prints error statement and returns None,
+          else interpolates vm to yield vb '''
+        vm, lut  = self.matchesboundary(chan, vm, self.version)
+        if vm == None:
+            # vm was outside of allowable bounds... so vb is undefined...
+            return None       
+        #bracket vm by lut keys
+        vhi = None
+        vlo = None
+        keys = list(lut.keys())
+        for k in keys:
+            if vm < k:
+                vhi = k
+                break
+            else:
+                vlo = k
+
+        print(f"\tvlo: {vlo}, vm: {vm}, vhi: {vhi}")
+
+        # --- Interpolation ---
+        fract = (vm - vlo) / (vhi - vlo)     #fraction of the way from vm_lo to vm_hi
+        vbhi = lut[vhi]
+        vblo = lut[vlo]
+        vb = round(vblo + fract * (vbhi - vblo), 4)      # vb= vin_low + fract * (vin_hi -  vin_lo)
+
+        return vb
+    
+     
+    def mean(self, alist):
+         '''Returns the mean of a list of values. Used for simple mean and also variances)'''
+         return sum(alist)/len(alist)
+    
+    def matchesboundary(self, chan:int, vm:float, version:int) :
+        '''Returns tuple(vm, lut). Vm is None if outside of allowed boundary limits, Returns vm if vm is within tol of first or last key.'''
+     
+        lut=self.luts[chan]
+        keys = list(lut.keys())
+        minkey = keys[0]
+        maxkey = keys[-1]
+        #print(f"\t bounds for chan {chan}: {minkey}, {maxkey}")
+        vinstep = 0.1            # all luts have vin in 0.1V steps.
+        tol = vinstep/2*self.vd_fracts[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
+        #allowable vm values to set vm = minkey or maxkey depending...
+        lo_tol = minkey - tol
+        hi_tol = maxkey + tol
+        if vm < lo_tol or vm > hi_tol:
+            print( f"Error: {minkey} <= vm:{vm} <= {maxkey} violated. Returning None for vm")
+            return (None, lut)
+        else:
+            # if vm is equal to minkey or maxkey, set vm to minkey or maxkey depending
+            vmr=None
+            if  lo_tol < vm < keys[1]:
+                vmr = minkey
+            elif keys[-2] < vm < hi_tol:
+                vmr = maxkey
+            else:
+                #passed in vm is inside of lut boundaries so it can be interpolated.
+                vmr = vm
+        return (vmr, lut)
+                    

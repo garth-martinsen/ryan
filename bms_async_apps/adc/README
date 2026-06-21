@@ -1,0 +1,32 @@
+This is a micropython directory.
+
+The code here must be run in micropython uploaded to an ESP32 device.
+The Adc_async_client is remote and battery powered.
+Its purpose is to measure and report on a 3-pack of 18650 Lithium Ion battery cells.
+Voltage taps on the cells provides three channels: One cell, Two cells, Three cells.
+The server can compute the voltages for each of the three cells in isolation by 
+subtraction of the voltage measurements.
+The Adc_async_client receives commands via asyncio_connection from the Server running in Python3
+The commands originate from the Gui_asyncio_client running on any display host running in Python3. 
+The Server receives the commands via asyncio from the Gui_asyncio_client and forwards them to Adc_async_client after adding a unique msgid from a db table (MSGID). (Acts as a generator)
+Upon receiving the command, the  Adc_async_client performs a measurement and stores the A2D samples (currently 64) in its flash memory. 
+Then it sends via asyncio_connection a message to the Server in which is embedded the A2D samples and other needed fields.
+A measurment command (100) will result in 3 measurement reports, each with voltage measurements for ( One cell , Two Cells, Three Cells) respectively.
+A calibration command(200) will be for a single channel and will contain the Truth value, vin, (input voltage ). 
+A calibration command will result in one calibration_report(201) msg sent to the Server with "vin" embedded along with normal samples and neccessary fields.
+The Adc_async_client can receive three commands: Measure (100), Start_Perioc_measurements (175) and Calibrate (200). 
+Once Periodic_Measurements are started, Adc_async_client just measures and reports at the specified periods  until the number of repetitions are fulfilled.
+For periodic , the Gui_async_client will embed two attributes in msgs thru the Server to the Adc_async_client, Start_Periodic.period and Start_Periodic.repetitions.
+The Adc_async_client will send only the following types of reports to the Server:report_measurement(101), report_calibration(201). 
+A measurement(100) and a calibration(200) command will vary in two ways: the type ('m','c') and vin = [0, truthValue], where 'm' means measure and 'c' means calibrate, and a calibration is chan specific.
+The time expended in ADC client will be ~1 second per channel, or about 3 seconds for all three.
+A small amount of time will be expended in translating incoming msgs and formatting outgoing messages.
+
+Summary:
+1. Code must run in micropython uploaded to an ESP32.
+2. Client must be able to receive commands via json and asyncio
+3. Client must be able to report back to Server via json and asyncio.
+4. Client must be flexible as to the number of samples, sample_rate, etc.
+5. Process latency estimated to be less than 5 seconds round trip from GUI_client -> Svr ->ADC_client.-> Svr -> DB table -> GUI_client.
+6. Msg sizes should be less than 1kb.
+
