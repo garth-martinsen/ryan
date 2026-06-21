@@ -11,11 +11,7 @@ msg = { "RECEIVER": "DB","SENDER" : "ADC", "TIMESTAMP" : '2026-5-20  17:40:27', 
 
 async def tcp_client():
 
-    reader, writer = await asyncio.open_connection(
-        '192.168.254.19',
-        8888
-    )
- 
+    reader, writer = await asyncio.open_connection( '192.168.254.19', 8888 )
  # send a hello msg to introduce me to the server
     hello = { "SENDER":"ADC", "CODE":0 }
     msg = json.dumps(hello) + "\n"
@@ -23,11 +19,11 @@ async def tcp_client():
     await writer.drain()
     
     #todo : Rule to send out msg :  1. msgj=json.dumps(msg) + "\n" -> 2. writer.write(msgj.encode() -> 3. await writer.drain()
-    packet = json.dumps(msg) + "\n"
-    writer.write(packet.encode())
-    await writer.drain()
+        #     packet = json.dumps(msg) + "\n"
+        #     writer.write(packet.encode())
+        #     await writer.drain()
 
-    data = await reader.readline()
+    data = await reader.readline()   # blocks until reads a "\n"
     dataj=json.loads(data.decode())
     print(f"  {dataj}")
 

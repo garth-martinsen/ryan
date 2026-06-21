@@ -67,7 +67,7 @@ class Server:
                     await writer.drain()
                 else:
                     loop =asyncio.get_event_loop()
-                    rspns_msg = await self.svr_task_manager.create_and_schedule_tasks(loop, data, self.clients)
+                    rspns_msg = await self.svr_task_manager.create_and_schedule_tasks(loop=loop, clients= self.clients, msg= data)
         except Exception as e:
             print("Error:", e)
             print("file: " , e.__traceback__.tb_frame.f_code.co_filename)

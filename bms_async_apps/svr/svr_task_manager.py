@@ -57,7 +57,11 @@ class SvrTaskManager:
 
     async def send_to_client(self, name, msg, clients):
         print(f"sending msg to {name} client. msg: {msg}")
-        writer=clients[name]
+        writer=clients.get(name)
+        if writer is None:
+            print(f" {name} is not connected ")
+            print("So what do I do now?")
+            return
         msgj=json.dumps(msg) + "\n"
         print("msgj: ", msgj)
         writer.write(msgj.encode())
@@ -86,10 +90,10 @@ class SvrTaskManager:
             print("reached : hw 1")       
             # codes: 100,175,200 ,with already embedded msigid are forwarded to the ADC_client with msg.
             if code in [100,175,200]:
-                await self.send_to_client("ADC", msg, self.svr.clients)
+                await self.send_to_client("ADC", msg, self.clients)
             if code in [101,201]:
                 response = await self.compute_stats(msg)
-                await self.send_to_client("GUI", response, self.svr.clients)
+                await self.send_to_client("GUI", response, self.clients)
               # all of the even codes > 300 will be tasked to the dbi and returned to the gui_client with code=code+1.
             if code > 300 and code%2 == 0:
                  arglist=msg["ARGLIST"]
