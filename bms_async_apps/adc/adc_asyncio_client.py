@@ -27,7 +27,7 @@ async def tcp_client():
     dataj=json.loads(data.decode())
     print(f"  {dataj}")
 
-    writer.close()
-    await writer.wait_closed()
+    #writer.close()
+    #await writer.wait_closed()
 
 asyncio.run(tcp_client())

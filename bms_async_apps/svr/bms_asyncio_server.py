@@ -38,11 +38,17 @@ class Server:
             while True:
                 
                 line = await reader.readline()
-                data = json.loads(line.decode())
-
-                if not data:
+                if not line:
+                    print("Client disconnected")
                     break
+                try:
+                    data = json.loads(line.decode())
+                except json.JSONDecodeError as e:
+                    print(f"Bad JSON: {e}")
+                    continue
+               
                 print(f"Received MSG: type: {type(data)} ,  data: {data} ")
+                
                 # capture and store the client writers when they send code=0 ,for later use
                 if data["SENDER"]=="GUI":
                     msgid = self.svr_task_manager.dbi.next_msgid()
