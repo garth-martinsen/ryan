@@ -37,45 +37,17 @@ Summary:
 
 Commands that the Gui_async_client can send. These may change as needed. They may be simplified.
 
-cmd[100]='request_measure'                      #all chans ; will result in (3)reports 101s
-cmd[101]='response_measurement'
-cmd[150]= 'request past_measurements_0'            #chan 0
-cmd[151]='response past_measurements_0'
-cmd[152]= 'request past_measurements_1'           #chan 1
-cmd[153]='response past_measurements_1'
-cmd[154]= 'request past_measurements_2'           #chan 2
-cmd[155]='response past_measurements_2'
-cmd[175]='set_up_periodic_measurements'
-cmd[200]='request_calibrate_0'
-cmd[201]='response_calibration_0'
-cmd[202]='request_calibrate_1'
-cmd[203]='response_calibration_1'
-cmd[204]='request_calibrate_2'
-cmd[205]='response_calibration_2'
-cmd[250]='request_past_calibrations_0'
-cmd[251]='response past_calibrations_0'
-cmd[252]='request_past_calibrations_1'
-cmd[253]='response past_calibrations_1'
-cmd[254]='request_past_calibrations_2'
-cmd[255]='response past_calibrations_2'
+cmd[100]= 'request_measure'                 #all chans ; will result in (3)reports 101s
+cmd[101]= 'response_measurement'
+cmd[150]= 'request past_records'            # (chan,type)
+cmd[175]= 'set_up_periodic_measurements'
 cmd[300]= 'save_config'
-cmd[310]= 'request_config chan(0)'
-cmd[311]= 'response_config chan(0)'
-cmd[312]= 'request_config chan(1)'
-cmd[313]= 'response_config chan(1)'
-cmd[314]= 'request_config chan(2)'
-cmd[315]= 'response_config chan(2)'
-cmd[350]= 'update_lut'                                #id, version , chan, vm, vin  embedded in json
-cmd[360]= 'request_lut_0'
-cmd[361]= 'responselut_0'
-cmd[362]= 'request_lut_1'
-cmd[363]= 'response_lut_1'
-cmd[364]= 'request_lut_2'
-cmd[365]= 'response_lut_2'
-cmd[370]= 'request_lut0_timestamp'
-cmd[371]= 'response_lut0_timestamp'
-cmd[372]= 'request_lut1_timestamp'
-cmd[373]= 'response_lut1_timestamp'
-cmd[374]= 'request_lut2_timestamp'
-cmd[375]= 'response_lut2_timestamp'
+cmd[310]= 'request_config chan'            # (chan)
+cmd[311]= 'response_config'                # (chan)
+cmd[350]= 'update_lut'                     # (id, version , chan, vm, vin)  embedded in json
+cmd[360]= 'request_lut'                    # (chan)
+cmd[361]= 'responselut'                    # (chan)
+cmd[370]= 'request_lut_timestamp'          # (chan)
+cmd[371]= 'response_lut_timestamp'         # (chan)
+
 
