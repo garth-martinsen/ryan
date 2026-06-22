@@ -39,3 +39,25 @@ Results:
                            
                            etc...
     Note that request code: 330 results in a response code of 331  but that the msgid is the same in both request and response.
+    
+  project files:   as of 6/21/2026
+  |── adc
+│   ├── README
+│   └── adc_asyncio_client.py
+├── docs
+│   ├── chatgpt.txt
+├── gui
+│   ├── README
+│   ├── gui_asyncio_client.py
+│   
+└── svr
+    ├── README
+    ├── bms_asyncio_server.py
+    ├── database_interface.py
+    ├── database_interface_config.py
+    ├── dbi_records.py
+    ├── requirements.txt
+    ├── requirements.txt~
+    ├── svr_task_manager.py
+    ├── test_dbi.py
+    └── test_svr_task_manager.py
