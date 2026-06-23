@@ -1,10 +1,11 @@
 #gjm stuff
+**/.DS_Store
+**/*.swp
 **/*.txt~
 **/README~
 */*~
 **/*.py~
 */.py~
-*/.DS_Store
 *.un~
 */.~
 # Byte-compiled / optimized / DLL files
