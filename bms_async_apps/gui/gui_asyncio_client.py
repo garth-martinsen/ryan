@@ -37,7 +37,7 @@ def get_msg():
     # print("Respond to promps. They will change depending on code (command). ")
     ts = _timestamp()
     receiver = input("RECEIVER: " )
-    sender = input("SENDER: " )
+    sender = "GUI" 
     code = int(input("CODE: " ))
     msg =  {"RECEIVER": receiver , "SENDER" : sender, "TIMESTAMP": ts, "CODE": code}
     msg["ARGLIST"]=[]
