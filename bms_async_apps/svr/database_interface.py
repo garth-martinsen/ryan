@@ -115,7 +115,7 @@ class DatabaseInterface:
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        cu.execute("INSERT INTO MSGID VALUES(NULL, ?)", (time.time_ns(),) )
+        cu.execute("INSERT INTO MSGID VALUES(NULL, ?)", (time.time(),) )
         msgid = cu.lastrowid
         return msgid
  
