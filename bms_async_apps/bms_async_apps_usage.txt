@@ -1,7 +1,8 @@
 # file: Usage    as of: 6/21/2026 
-1. open two terminal windows.
-2. navigate to the correct dir for each and  create virtual env in both
-3. in both terminals install dependencies using : pip install -r requirements.txt
+1. open two terminal windows : svr, gui.
+2. navigate to the correct dir for each [bms_asyncio_apps/svr , gui] and  create virtual env in both
+3. in both terminals install dependencies using : pip install -r
+requirements.txt (requirements.txt is in dir bms_async_apps/)
 4. in terminal 1 start the server:  python bms_async_server.py
 5. in terminal 2 start the gui_client:  python  gui_asyncio_client.py
 6. Start Thonny and run adc_asyncio.py with micropython environment.
