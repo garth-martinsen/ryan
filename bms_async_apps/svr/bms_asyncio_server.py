@@ -47,13 +47,13 @@ class Server:
                     print(f"Bad JSON: {e}")
                     continue
                
-                print(f"Received MSG: type: {type(data)} ,  data: {data} ")
+                print(f"\tServer Received MSG: type: {type(data)} ,  data: {data} ")
                 
                 # capture and store the client writers when they send code=0 ,for later use
                 if data["SENDER"]=="GUI":
                     msgid = self.svr_task_manager.dbi.next_msgid()
                     data["MSGID"]=msgid
-                    print(f" msgid stamped msg: {data}")
+                    #print(f" msgid stamped msg: {data}")
                 code = data["CODE"]
                 #print(f"type(code) : {type(code)} , value: {code}")
                 if code == 0:
