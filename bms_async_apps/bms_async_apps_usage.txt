@@ -7,9 +7,8 @@ requirements.txt (requirements.txt is in dir bms_async_apps/)
 5. in terminal 2 start the gui_client:  python  gui_asyncio_client.py
 6. Start Thonny and run adc_asyncio.py with micropython environment.
 7. in gui terminal note the codes and functions they call...
-8. in gui terminal execute the following cmds:
+8. in gui terminal execute the following cmds. All cmds from GUI are marked SENDER: 'GUI':
        Receiver : ADC
-       SENDER: GUI
        CODE: 100   # Later substitute 200, then 175
        enter values when prompted
        arglist prompt requires a list so enter [x,y,...]  for each required arg ( check the codes and functions displayed...)
@@ -41,24 +40,23 @@ Results:
                            etc...
     Note that request code: 330 results in a response code of 331  but that the msgid is the same in both request and response.
     
-  project files:   as of 6/21/2026
-  |── adc
+  project files:   as of 6/23/2026
+bms_async_apps
+├── adc
 │   ├── README
 │   └── adc_asyncio_client.py
-├── docs
-│   ├── chatgpt.txt
+├── bms_async_apps_usage.txt
 ├── gui
 │   ├── README
-│   ├── gui_asyncio_client.py
-│   
+│   └── gui_asyncio_client.py
+├── requirements.txt
 └── svr
     ├── README
     ├── bms_asyncio_server.py
     ├── database_interface.py
     ├── database_interface_config.py
     ├── dbi_records.py
-    ├── requirements.txt
-    ├── requirements.txt~
     ├── svr_task_manager.py
     ├── test_dbi.py
     └── test_svr_task_manager.py
+
