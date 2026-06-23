@@ -1,6 +1,6 @@
 # file test_dbi.py  Given a msg, save the bms in the msg to BMS table in database rt_db.   Run in Python3
 
-from database_interface import DatabaseInterface
+from database_interface import DatabaseInterface, LUT_ITEM
 from database_interface_config import Config, LUT, BMS, BMS_FIELDS, CONFIG_FIELDS
 from dbi_records import  configs,  bms, samples, answers, lut_answers
 #from lut_convert import LutConvert as LC
@@ -63,7 +63,7 @@ class Test_DBI:
         print(f"type of lut:  { type(lut)} , lut: { lut} ")
         firstvin=lut[first_vm]
         lastvin = lut[last_vm]
-        assert firstvin == lut_answers[chan][0]  , f" firstvin is wrong ; it should be first value in lut : {lut_answers[chan][0]} "
+        assert firstvin == lut_answers[chan][0]  , f" firstvin {firstvin } is wrong ; it should be first value in lut : {lut_answers[chan][0]} "
         assert lastvin == lut_answers[chan][1] ,   f" lastvin is wrong ; it should be  last value in lut : {lut_answers[chan][1]} "
          
         print(f"Passed  test_get_lut chan: {chan}")
@@ -74,7 +74,7 @@ class Test_DBI:
         print("===================")
         print(f"testing load_config() for chan: {chan}")
         # get config from the databaseInterface on table config.
-        record = dbi.load_config( chan)
+        record = dbi.get_config( chan)
         print(f"type(record):  {type(record)} config record for chan :{chan}: {Config(*record[0])} ")
         cfg= Config(*record[0])
         #dbi.cfgs[chan]=cfg
@@ -118,13 +118,13 @@ class Test_DBI:
         print(f"testing save_to_bms() for a record of type {atype} on chan: {chan}")
         # everything else should be the same...
         msg["SENDER_ID"]="adc"           # add back in for test
-        ts= dbi._timestamp()             # for tests use the timestamp of the dbi to allow user to verify recent saves.
+        ts= round(dbi._timestamp(), 3)             # for tests use the timestamp of the dbi to allow user to verify recent saves.
         msg['TIMESTAMP']=ts
         print(f"msg to save: {msg}")
         #save a record to to db table bms...
         dbi.save_to_bms(msg)
         #read from db to check for last record.
-        records = dbi.list_records(1, atype)
+        records = dbi.list_bms(1, atype)
         print(f" len(records) : {len(records)}")
         lenc= len(records)
         if lenc < 1:
@@ -137,7 +137,7 @@ class Test_DBI:
             #print(f" msg.vm: {msg['VM_MEAN'] }  type: {type(msg['VM_MEAN'])}")
             assert last_record.TYPE ==atype , f" Wrong type: {last_record.TYPE } is not 'atype'  "
             last_record.VM_MEAN   == msg["VM_MEAN"], f"vm is different from input to saved record {last_record.VM_MEAN}"
-            assert ts == last_record.TIMESTAMP , f" Timestamp of record: {last_record.TIMESTAMP} differs from ts {ts}"
+            assert ts == round(float(last_record.TIMESTAMP),3) , f" Timestamp of record: {last_record.TIMESTAMP} differs from ts {ts}"
 
     def test_list_records(self,chan, atype):
         print("===================")
@@ -155,8 +155,12 @@ class Test_DBI:
   
     def test_list_records(self, chan, atype):
         print("===================")
-        print(f"testing list_records() on chan {chan}")
-        records = dbi.list_records(chan, atype)
+        if atype =='m':
+            _type = 'measurements'
+        elif atype == 'c':
+            _type = 'calibrations'
+        print(f"testing list_records() on chan {chan} for {_type}")
+        records = dbi.list_bms(chan, atype)
         lenm=len(records)
         if lenm < 1:
             print( "no records")
@@ -168,42 +172,27 @@ class Test_DBI:
             assert last_record.TYPE == atype , f" Type: {last_record.type} is not {atype}"
             print(f"Number of measurement records: {lenm} ")
 
-            print(f"Passed  test_list_records on chan: {chan}")
+            print(f"Passed  test_list_records on chan: {chan} for {_type}")
 
     def test_update_lut(self, chan):
         print("===================")
-        print(f"testing update_lut({chan}) by adding  .0001 to first and last values in LUT, saving to db, testing update, then restoring")        
-        lut= dbi.get_lut(chan)
-        first_vm= min(lut.keys())
-        last_vm= max(lut.keys())
-        # save to check restoration
-        first_vin = lut[first_vm]
-        last_vin= lut[last_vm]
-        # modify the first and last vin by adding 0.0001 to each
-        updated_first_vin = first_vin + 0.0001
-        updated_last_vin = last_vin  + 0.0001
-        lut[first_vm]= updated_first_vin
-        lut[last_vm]= updated_last_vin
-        #print("\tafter adding .0001: ", lut)
-        # get ids for first and last
-        first_id, vm, vin, version = dbi.get_lut_row(chan, first_vm)
-        last_id, vm, vin, version = dbi.get_lut_row(chan, last_vm)
-        # update the first and the last pairs in the lut.  saving lut_ts to config. is part of dbi.update_lut_pair()
-        dbi.update_lut_pair( chan, first_id, first_vm, updated_first_vin)
-        dbi.update_lut_pair( chan, last_id, last_vm, updated_last_vin)
-        # check to see if lut was updated with +0.0001
-        lut= dbi.get_lut(chan)
-        eps=1e-6
-        print("\tlut retrieved after update by 0.0001: " , lut)
-        assert lut[first_vm] - updated_first_vin < eps, f" First vin was not updated. should be: {updated_first_vin}"
-        assert lut[last_vm] - updated_last_vin < eps, f" Last vin was not updated. should be: {updated_last_vin}"
-        #restore lut to original state
-        dbi.update_lut_pair(chan, first_id, first_vm, lut[first_vm] -  0.0001)
-        dbi.update_lut_pair(chan, last_id, last_vm, lut[last_vm] -  0.0001)
-        # check restoration
+        print(f"testing update_lut({chan}) by adding  .0001 to first vin in  LUT, update db, test update, then update to original vin and test the restoration")
+        diff=0.0001
+        # get the lut, find first vm, select lut_item;  add diff
         lut=dbi.get_lut(chan)
-        assert lut[first_vm] == first_vin , f" First vin was not restored. should be: {first_vin}"
-        assert lut[last_vm] == last_vin , f" Last vin was not restored. should be: {last_vin}"
+        vm1=min(lut.keys())
+        li=LUT_ITEM(*dbi.get_lut_pair(chan, vm1))
+        vin_new = li.VIN + diff
+        # update LUTS table with vin_new...
+        li2=LUT_ITEM(li.ID, li.APP_ID, li.VERSION, li.CHAN, li.VM, vin_new)
+        dbi.update_lut_pair(li2)
+        # test to ensure update:
+        li3= LUT_ITEM(*dbi.get_lut_pair(chan, vm1))
+        assert li3.VIN == vin_new, f"Updated vin was not persisted {li3.VIN} not equal to {li2.VIN} "
+        # restore previous vin value and test to ensure restoration
+        dbi.update_lut_pair(li)
+        li4 =  LUT_ITEM(*dbi.get_lut_pair(chan, vm1))
+        assert li4.VIN == li.VIN, f"First vin was not restored. {li4.VIN} does not equal {li.VIN}"
           
         print(f"Passed test_update_lut({chan}) ")
         
@@ -268,49 +257,50 @@ class Test_DBI:
         print()
         print(f"Passed  test_lut_limits chan {chan}")
         
-    def test_call_function(self, code, argslist):
+    def test_call_function(self, code, arglist):
             print("===================")
-            print(f"Testing call_function: code: {code} function: { dbi.functions_dict[code].__name__ }  argslist: {argslist}")
-            print(dbi.functions_dict[code] ( *argslist))
+            print(f"Testing call_function: code: {code} function: { dbi.funct_dict[code].__name__ }  arglist: {arglist}")
+            print(dbi.funct_dict[code] ( *arglist))
         
 testdbi=Test_DBI()
 #start_msg is defined near line 18
 print(" =========Tests Begin =======================")
-# testdbi.test_get_lut(0)
-# testdbi.test_get_lut(1)
-# testdbi.test_get_lut(2)
-# testdbi.test_load_config(1,0)
-# testdbi.test_load_config(1,1)
-# testdbi.test_load_config(1,2)
-# testdbi.test_cols_vals(deepcopy(start_msg))
-# testdbi.test_save_to_bms(deepcopy(start_msg),'c')                #calibrations
-# testdbi.test_save_to_bms(deepcopy(start_msg),'m')     # measurements
-# testdbi.test_list_records(0, 'm')
-# testdbi.test_list_records(1, 'm')
-# testdbi.test_list_records(2, 'm')
-# testdbi.test_list_records(0,'c')
-# testdbi.test_list_records(1,'c')
-# testdbi.test_list_records(2,'c')
-# testdbi.test_update_lut(0)
-# testdbi.test_update_lut(1)
-# testdbi.test_update_lut(2)
-# testdbi.test_lut_limits(0)
-# testdbi.test_lut_limits(1)
-# testdbi.test_lut_limits(2)
-# testdbi.test_a2d_bms_sync()
-testdbi.test_call_function(150, [0, 'm'])
-testdbi.test_call_function(150, [0, 'c'])
-testdbi.test_call_function(150, [1, 'm'])
-testdbi.test_call_function(150, [1, 'c'])
-testdbi.test_call_function(150, [2, 'm'])
-testdbi.test_call_function(150, [2, 'c'])
-testdbi.test_call_function(152, [15])
+#TODO 7: Fix tests broken by schema change: They are commented out.
+testdbi.test_get_lut(0)
+testdbi.test_get_lut(1)
+testdbi.test_get_lut(2)
+testdbi.test_load_config(1,0)
+testdbi.test_load_config(1,1)
+testdbi.test_load_config(1,2)
+testdbi.test_cols_vals(deepcopy(start_msg))
+testdbi.test_save_to_bms(deepcopy(start_msg),'c')                #calibrations
+testdbi.test_save_to_bms(deepcopy(start_msg),'m')     # measurements
+testdbi.test_list_records(0, 'm')
+testdbi.test_list_records(1, 'm')
+testdbi.test_list_records(2, 'm')
+testdbi.test_list_records(0,'c')
+testdbi.test_list_records(1,'c')
+testdbi.test_list_records(2,'c')
+testdbi.test_update_lut(0)   
+testdbi.test_update_lut(1)
+testdbi.test_update_lut(2)
+testdbi.test_lut_limits(0)
+testdbi.test_lut_limits(1)
+testdbi.test_lut_limits(2)
+testdbi.test_a2d_bms_sync()
+testdbi.test_call_function(330, [0, 'm'])
+testdbi.test_call_function(330, [0, 'c'])
+testdbi.test_call_function(330, [1, 'm'])
+testdbi.test_call_function(330, [1, 'c'])
+testdbi.test_call_function(330, [2, 'm'])
+testdbi.test_call_function(330, [2, 'c'])
+testdbi.test_call_function(340, [15])
 testdbi.test_call_function(310, [0])
 testdbi.test_call_function(310, [1])
 testdbi.test_call_function(310, [2])
-testdbi.test_call_function(360, [0])
-testdbi.test_call_function(360, [1])
-testdbi.test_call_function(360, [2])
+testdbi.test_call_function(350, [0])
+testdbi.test_call_function(350, [1])
+testdbi.test_call_function(350, [2])
 
 '''
 #testdbi.test_timestamp()

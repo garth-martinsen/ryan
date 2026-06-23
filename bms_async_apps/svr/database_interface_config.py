@@ -4,7 +4,9 @@ from collections import namedtuple
 
 # named tuples... Where they match db table column names they will be upper case.
 
-CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_ID', 'APP_DESC', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC', 'CREATION_TIME', 'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'C1', 'R1', 'R2', 'VD_FRACT', 'LUT_CALIBRATED', 'LUT_TS')
+CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_ID', 'APP_DESC', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC',
+                                       'CREATION_TIME', 'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'C1', 'R1', 'R2',
+                                       'VD_FRACT', 'LUT_CALIBRATED', 'LUT_TS', 'K_FACTOR')
 
 Config = namedtuple( "Config", CONFIG_FIELDS)                                                                         #19 fields
 
@@ -28,18 +30,15 @@ db_path =   '/Users/garth/DEV/ryan/sqliteDB/rt_db'
 
 #=== responses ======
 #TODO: design handling of the following responses in svr_task_mgr info only
-'''
-functions_dict[100]= self.measure                                                   # []                                   forward to ADC_clien; will result in (3) 101s
-functions_dict[150]= self.dbi.list_records                                       # [ chan, atype ]     
-functions_dict[175]= self.set_up_periodic                                      # [period, reps]               forward to ADC_client
-functions_dict[200]= self.calibrate                                                   # [chan, type, vin]
-functions_dict[101]='report_measurement'                                                                          # three responses per 100 request
-functions_dict[201]='response_calibration '                                                                         # one response per 200 request
-functions_dict[311]= 'response_config embedded: [chan, config field values]'
-functions_dict[361]= 'response_lut     embedded: [lut, chan, ...]'
-functions_dict[371]= 'response_lut_timestamp  embedded: timestamp'
-'''
-std_msg = {"sender"}
+# dict to display the dbi interface codes (cmds) and the arglist for each...
+
+funct_desc = {300: 'save_config(  msg : Config )',       310: 'get_config( chan : int )',
+                        320:'save_to_bms( msg :BMS )' ,         330: 'list_bms( chan:int, atype:str) ',
+                        340: 'get_bms_a2d_samples( bms_id : int)', 350: 'get_lut( chan:int)',
+                        360: 'get_lut_timestamp( chan:int )',     370:'update_lut_pair(  _id:int,   vm:float,   vin:float)' ,
+                        380: 'update_lut_timestamp( chan:int )', 390: 'get_vd_fracts( )'  }
+
+
 
 # join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
 # BMS join A2D example: select * from BMS bms join A2D a2d on bms.id= a2d.bms_id;   note: first two fields of A2D should be ignored: (id and bms_id)

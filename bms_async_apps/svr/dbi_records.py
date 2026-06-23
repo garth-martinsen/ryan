@@ -4,9 +4,9 @@ from  database_interface_config import Config, BMS, Stats
 #config records
 
 configs=[[],[],[]]
-configs[0] = Config(1, 'GM', 1, 'Development', 0,  'One Cell 3.0-4.5V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 99300, 219100,   0.688128140703518, 0, '2026-2-24 17:00', )
-configs[1] = Config(2, 'GM', 1, 'Development', 1,  'Two Cells 6.0-9.0V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64,  1e-07, 217700, 99300,  0.313249211356467, 0, '2026-2-24 17:07')
-configs[2] = Config(3, 'GM', 1, 'Development', 2,  'Three Cells 9.0-13.5V',   3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 301100, 994000, 0.248189762796504, 0, '2026-2-24 17:07')
+configs[0] = Config(1, 'GM', 1, 'Development', 0,  'One Cell 3.0-4.5V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 99300, 219100,   0.688128140703518, 0, '2026-2-24 17:00', 3.0)
+configs[1] = Config(2, 'GM', 1, 'Development', 1,  'Two Cells 6.0-9.0V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64,  1e-07, 217700, 99300,  0.313249211356467, 0, '2026-2-24 17:07', 3.0)
+configs[2] = Config(3, 'GM', 1, 'Development', 2,  'Three Cells 9.0-13.5V',   3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 301100, 994000, 0.248189762796504, 0, '2026-2-24 17:07', 3.0)
 
 # bms records
 # 6/2/26 CREATE TABLE IF NOT EXISTS "BMS" ( id integer primary key, timestamp varchar, type varchar,chan integer,vin real, error real, a2d_mean integer, vm_mean real, vm_sd real, vb real, samples varchar, discard_sz, keep_sz, samp_sz);
@@ -21,14 +21,13 @@ answers[0]= Stats(22654 ,2.8311, 0.000316, 3.7736)
 answers[1]= Stats( 21655, 2.7062, 0.00028, 8.0848)
 answers[2]= Stats( 21035, 2.6287, 0.000266,10.4964)
 
-lut_answers = [(),(),()]
-lut_answers[0]=(3.0, 4.5)
-lut_answers[1]=(6.0, 9.0)
-lut_answers[2]=(9.0, 13.5)
-
+lut_answers0=(3.0, 4.5)
+lut_answers1=(6.0, 9.0)
+lut_answers2=(9.0, 13.5)
+lut_answers = [lut_answers0, lut_answers1, lut_answers2]
 
 #6/6/26: BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN",  "VIN",  "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
-# missing until computed: "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "ERROR"
+# Fiends missing until computed: "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "ERROR"
 bms=[[],[],[],[],[],[]]
 bms[0] = BMS(1, 5010, 3, '2026-3-21 20:34:25', 'c',   0,  22654, 2.83175, 0.000316, 4.113, 4.114, -0.001, 64, 2, 62 )
 bms[1] = BMS(2, 5010, 3, '2026-3-14 19:43:55', 'c',   1,  21036 , 2.629, 0.000239, 7.856, 7.9,  0.0444505, 64,2,62 )

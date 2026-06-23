@@ -8,13 +8,16 @@ import sqlite3
 import time
 import datetime
 import json
-from database_interface_config import db_path, Config, Abbrev, BMS, LUT,CONFIG_FIELDS, BMS_FIELDS, Stats
-from collections import OrderedDict
+from database_interface_config import db_path, Config, Abbrev, BMS, LUT,CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
+
+from collections import OrderedDict, namedtuple
 import re
 import math
 from typing import List
 #import asyncio
-
+# ID | APP_ID | VERSION | CHAN |   VM   | VIN  |
+LUT_ITEM = namedtuple("LUT_ITEM", ("ID", "APP_ID", "VERSION", "CHAN", "VM", "VIN", ))
+ 
 class DatabaseInterface:
 
     def __init__(self,app_id, version):
@@ -29,22 +32,26 @@ class DatabaseInterface:
         self.lut_timestamps:List[str] = ["","",""]
         self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
         self.msg = ""
-        self.load_functions_dict()
-    
-    def load_functions_dict(self):
-        functions_dict  = dict()
-        functions_dict[150]= self.list_records                                      # ([ chan, type])
-        functions_dict[152]= self.get_a2d_samples                            # ([bms_id])
-        functions_dict[300]= self.save_config                                     # ([cfg_id, msg:Config])
-        functions_dict[310]= self.load_config                                      # ([chan] )
-        functions_dict[350]= self.update_lut_pair                               # ([ chan, _id, vm, vin] )    
-        functions_dict[360]= self.get_lut                                              # ( [chan] )
-        functions_dict[370]= self.get_lut_timestamp                           # ([ chan ])
-        self.functions_dict = functions_dict
+        self.funct_dict = self.create_function_dict()
+        self.funct_desc = funct_desc
 
+    def create_function_dict(self):
+            funct_dict  = dict()
+            funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
+            funct_dict[310]= self.get_config                                        # ( [chan] )
+            funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
+            funct_dict[330]= self.list_bms                                           # ([ chan, type])
+            funct_dict[340]= self.get_bms_a2d_samples                            # ([ bms_id])
+            funct_dict[350]= self.get_lut                                              # ( [chan] )
+            funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
+            funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
+            funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
+            funct_dict[390]= self.get_vd_fracts                                  #([])
+            return funct_dict
+            
     def call_function( self, code, argslist):
-        print(f" code: {code}   function: {self.functions_dict[code].__name__} argslist: {argslist}")
-        return self.functions_dict[code]( *argslist )
+        print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
+        return self.funct_dict[code]( *argslist )
 
     def build_response(self, message):
         msg= f"Called dbi.build_response() with message: {message}"
@@ -75,12 +82,9 @@ class DatabaseInterface:
 
 
     def _create_cols_vals(self, msg):
-        '''Removes fields not in BMS schema, Returns two lists with column names (cols) and values (vals) to facilitate inserts into db.'''
-        # db table BMS has no column 'purpose' . ' type'  is used to reflect measurement/calibration instead. remove 'purpose' by pop
-        # TODO 8: leave msgid in and update bms table to save it. chatgpt suggested this.
-        #if "purpose" in msg:    msg.pop('purpose')
-        #if "sender_id" in msg: msg.pop("sender_id")
-        #if "msg_id" in msg:     msg.pop("msg_id")
+        '''Filters out fields not in BMS schema,
+         Returns two synchronized lists with column names (cols) and values (vals) to facilitate inserts into db.
+         BMS_FIELDS in database_interface_config.py must be kept current!!!'''
         cols=[]
         vals=[]
         rejects=[]
@@ -115,7 +119,7 @@ class DatabaseInterface:
         msgid = cu.lastrowid
         return msgid
  
-    def load_config(self, chan):
+    def get_config(self, chan):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
         For this select, it is one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory,BMS]...TBD
         """
@@ -148,16 +152,10 @@ class DatabaseInterface:
 
 
     #TODO 3 : Implement save_config(...) 
-    def save_config(self, cfg_id:int, msg:Config):
-        '''TBD... handles next version'''
+    def save_config(self,  msg:Config):
+        '''TBD... used to persist with new values... version update '''
         pass
 
-    def _format_insert(self, insert_str):
-        """quotes the keep list."""
-        insert_str = insert_str.replace("[", "'[")
-        insert_str = insert_str.replace("]", "]'")
-        return insert_str
-    
     def save_to_bms(self , msg):
         ''' Saves summary fields for both types ['m','c'] to the same database table, bms.Summary fields are :
  (ID | MSGID | VERSION | TIMESTAMP | TYPE | CHAN | A2D_MEAN | VM_MEAN |  VM_SD  |  VB  | VIN  |  ERROR  | SAMP_SZ | DISCARD_SZ | KEEP_SZ ).
@@ -187,7 +185,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         self.cx.commit()
         return bms_id
 
-    def list_records(self, chan, atype):
+    def list_bms(self, chan, atype):
         ''' Returns a list<records> of type atype.'''
         records = []
         select_str = f" select * from BMS where chan={chan} and type = '{atype}' ;  "
@@ -201,7 +199,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         return records
     
 
-    def get_a2d_samples(self, bms_id):
+    def get_bms_a2d_samples(self, bms_id):
         ''' retrieves the a2d samples as a list from tableA2D in order to analyze sample problems'''
         records=[]
         self.cx = sqlite3.connect(self.db_path)
@@ -215,11 +213,11 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         a2d=json.loads(lst[0])
         return a2d
  
-    def get_lut_row(self, chan, vm):
+    def get_lut_pair(self, chan, vm):
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        select_str = f"select id,vm,vin, version from luts where chan = {chan} and version= {self.version} and vm={vm};"
+        select_str = f"select * from luts where chan = {chan} and version= {self.version} and vm={vm};"
         # print("select_str: ", select_str)
         res = cu.execute(select_str)
         return res.fetchone()
@@ -247,31 +245,32 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         #print(timestamp)
         return timestamp
     
-    def update_lut_timestamp(self, chan, version):
-        '''Called when any lut is updated. It updates the lut_timestamp in the config table.'''
-        timestamp = self._timestamp()
+    def update_lut_timestamp(self, chan):
+        '''Called when any lut is updated. It updates the lut_timestamp in the config table. dbi instance variables: app_id, version'''
+        timestamp = self._timestamp()    # dbi timestamp is NOW.
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        update_str = f"update config set LUT_TS ='{timestamp}'  where chan={chan}";
+        update_str = f"update CONFIG set LUT_TS ='{timestamp}'  where chan={chan} and version = {self.version}";
         #print(f"update_str: {update_str}")
         cu.execute(update_str)
         self.cx.commit()
-       
- 
-    
-    def update_lut_pair(self, chan, _id, vm, vin):
-        '''updates a single vin value for a given id'''
+           
+    def update_lut_pair(self,  lut_item ):
+        '''Updates any of: vm, vin value for a given id . The cols for api_id , version are dbi instance variables... '''
         ts = self._timestamp()
+        print(f" lut_item.ID : {lut_item.ID}")
         self.cx = sqlite3.connect(self.db_path)
         self.cx.isolation_level = None
         cu = self.cx.cursor()
-        cfg_update_str = f" UPDATE Config  set LUT_TS ='{ts}' where id = {_id};"
-        lut_update_str = f"Update LUTS set vm={vm} , vin={vin} where id={_id} "
+        print(f"chan: {lut_item.CHAN}")
+        print(f"pair values to be updated: vm: {lut_item.VM} and vin: {lut_item.VIN}")
+        #cfg_update_str = f" UPDATE Config  set LUT_TS ='{ts}' where id = {lut_item.ID};"
+        lut_update_str = f" Update LUTS set vm={lut_item.VM} , vin={lut_item.VIN} where id={lut_item.ID} "
         #print("cfg_update_str: ", cfg_update_str)
-        cu.execute(cfg_update_str)
         cu.execute(lut_update_str)
-        self.update_lut_timestamp(chan, self.version)
+        #cu.execute(cfg_update_str)
+        self.update_lut_timestamp(lut_item.CHAN)
         self.cx.commit()
 
     
