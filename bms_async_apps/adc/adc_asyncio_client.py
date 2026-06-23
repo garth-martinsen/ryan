@@ -22,12 +22,16 @@ async def tcp_client():
         #     packet = json.dumps(msg) + "\n"
         #     writer.write(packet.encode())
         #     await writer.drain()
-
-    data = await reader.readline()   # blocks until reads a "\n"
-    dataj=json.loads(data.decode())
-    print(f"  {dataj}")
-
-    #writer.close()
-    #await writer.wait_closed()
+    while True:
+        print("ADC waiting for server message")
+        line = await reader.readline()   # blocks until reads a "\n"
+        #print("ADC raw line:", repr(line))
+        msg=json.loads(line.decode())
+        print("\tADC decoded msg:", msg)
+        #TODO 1: do : from adc import ADC;   wire it up so I can: 1. call adc.measure(c) where c=chan [0,1,2]; 2. call adc.start_periodic(period, reps).
+        
+#TODO 2: ask chatgpt how to place following two lines.  For now, just comment them out...
+#             writer.close()
+#             await writer.wait_closed()
 
 asyncio.run(tcp_client())
