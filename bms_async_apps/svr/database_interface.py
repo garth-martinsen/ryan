@@ -43,6 +43,7 @@ class DatabaseInterface:
             funct_dict[330]= self.list_bms                                           # ([ chan, type])
             funct_dict[340]= self.get_bms_a2d_samples                            # ([ bms_id])
             funct_dict[350]= self.get_lut                                              # ( [chan] )
+            funct_dict[352]= self.get_lut_item                                     # ( [chan, vin] )
             funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
             funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
             funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
@@ -221,7 +222,20 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         # print("select_str: ", select_str)
         res = cu.execute(select_str)
         return res.fetchone()
-        
+    
+    def get_cursor(self):
+        self.cx = sqlite3.connect(self.db_path)
+        self.cx.isolation_level = None
+        cu = self.cx.cursor()
+        return cu
+    
+    def get_lut_item(self, chan, vin):
+        '''Returns the whole LUT record including ID, given chan and vin.'''
+        cu=self.get_cursor()
+        select_str= f" select * from LUTS where app_id={self.app_id} and version = {self.version} and chan={chan} and vin={vin}"
+        res=cu.execute(select_str)
+        return res.fetchone()
+    
     def get_lut(self, chan):
         records=[]
         self.cx = sqlite3.connect(self.db_path)
