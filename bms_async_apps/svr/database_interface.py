@@ -27,7 +27,7 @@ class DatabaseInterface:
         print(f"dbpath: {self.db_path} ")
         print(f"app_id: {self.app_id} ")
         print(f"version: {self.version}")
-        self.cfgs: List[Config(),Config(), Config()]= [[],[],[]]
+        self.cfgs =  [] 
         self.luts :List[OrderedDict] =[OrderedDict(),OrderedDict(),OrderedDict()]
         self.lut_timestamps:List[str] = ["","",""]
         self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
@@ -101,9 +101,7 @@ class DatabaseInterface:
     def list_all_choices(self):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
         For now it is: _Abbrev_namedtuple_factory"""
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         #self.cx.row_factory = self._Abbrev_namedtuple_factory
         select_str = "SELECT id, owner, app_desc, channel_id, channel_desc, version_desc  FROM CONFIG order by owner and channel_id;"
         records = []
@@ -113,39 +111,33 @@ class DatabaseInterface:
         return records
 
     def next_msgid(self):
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu=self.get_cursor()
         cu.execute("INSERT INTO MSGID VALUES(NULL, ?)", (time.time(),) )
         msgid = cu.lastrowid
         return msgid
- 
+   
     def get_config(self, chan):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
         For this select, it is one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory,BMS]...TBD
         """
         cfg = []
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
         #self.cx.row_factory = self._Config_namedtuple_factory
-        cu = self.cx.cursor()
-        select_str = f"SELECT * FROM CONFIG where  app_id = {self.app_id} and chan = {chan} and version = {self.version};"
-        #print("select_str: ", select_str)
+        cu =self.get_cursor()
+        select_str = f"SELECT * FROM CONFIG where  app_id = {self.app_id} and version = {self.version} and chan = {chan}"
+        print("select_str: ", select_str)
         # Each row is a channel.
         for row in cu.execute(select_str):
-            #print("row: ", row)
+            print("row: ", row )
             cfg.append(Config(*row))
-        self.cfgs[chan]=cfg
+        #self.cfgs[chan]=cfg
+        print(f"cfg: {cfg}")
         return cfg
-       # self.vd_fracts = cfg["vd_fracts"]
      
     def get_vd_fracts(self ):
         od_vd_fracts = OrderedDict()
         select_str = f" select chan, vd_fract from CONFIG where app_id= {self.app_id} and version = {self.version}"
         #print(" select string: ",  select_str)
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         for row in cu.execute(select_str):
             #print("row: ", row)
             od_vd_fracts[row[0]] =row[1]
@@ -172,11 +164,8 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         vin = msg["VIN"]
         cols, vals = self._create_cols_vals(msg)      #should only contain the summary fields.
         print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
-        bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "
-
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "   
+        cu = self.get_cursor()
         cu.execute(bms_insert_str)
         bms_id=cu.lastrowid
         print(f"bms_id: {bms_id}")
@@ -191,10 +180,10 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         records = []
         select_str = f" select * from BMS where chan={chan} and type = '{atype}' ;  "
         #print(f"select _str: {select_str}")
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
+
+        
        # self.cx.row_factory = self._BMS_namedtuple_factory
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         for row in cu.execute(select_str):
             records.append(row)
         return records
@@ -203,9 +192,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
     def get_bms_a2d_samples(self, bms_id):
         ''' retrieves the a2d samples as a list from tableA2D in order to analyze sample problems'''
         records=[]
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         select_str = f"select samples from A2D where bms_id = {bms_id};"
         #print("select_str: ", select_str)
         for row in cu.execute(select_str):
@@ -214,10 +201,8 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         a2d=json.loads(lst[0])
         return a2d
  
-    def get_lut_pair(self, chan, vm):
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+    def get_lut_pair(self, chan, vm):  
+        cu = self.get_cursor()
         select_str = f"select * from luts where chan = {chan} and version= {self.version} and vm={vm};"
         # print("select_str: ", select_str)
         res = cu.execute(select_str)
@@ -229,6 +214,15 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu = self.cx.cursor()
         return cu
     
+    #TODO 6: Get get_schema working so that dbi can query for the schema of <table> in order to check correctness of namedtuples
+    def get_schema(self, table_name):
+        '''Returns the schema of 'table_name' '''
+        select_str = f".schema {table_name} "
+        print(f"sqlite3 {self.db_path} .schema {table_name}")
+        
+        
+      
+        
     def get_lut_item(self, chan, vin):
         '''Returns the whole LUT record including ID, given chan and vin.'''
         cu=self.get_cursor()
@@ -238,10 +232,8 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
     
     def get_lut(self, chan):
         records=[]
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
         #self.cx.row_factory = self._LUT_namedtuple_factory
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         select_str = f"select id,vm,vin from luts where chan = {chan} and version= {self.version};"
         #print("select_str: ", select_str)
         for row in cu.execute(select_str):
@@ -250,9 +242,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
 
     def get_lut_timestamp(self,  chan ):
         timestamp = ""
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         select_str = f"select LUT_TS from CONFIG where chan={chan} and version={self.version}";
         res= cu.execute(select_str)
         timestamp = res.fetchone()[0]
@@ -261,10 +251,8 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
     
     def update_lut_timestamp(self, chan):
         '''Called when any lut is updated. It updates the lut_timestamp in the config table. dbi instance variables: app_id, version'''
+        cu = self.get_cursor()
         timestamp = self._timestamp()    # dbi timestamp is NOW.
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
         update_str = f"update CONFIG set LUT_TS ='{timestamp}'  where chan={chan} and version = {self.version}";
         #print(f"update_str: {update_str}")
         cu.execute(update_str)
@@ -274,9 +262,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         '''Updates any of: vm, vin value for a given id . The cols for api_id , version are dbi instance variables... '''
         ts = self._timestamp()
         print(f" lut_item.ID : {lut_item.ID}")
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         print(f"chan: {lut_item.CHAN}")
         print(f"pair values to be updated: vm: {lut_item.VM} and vin: {lut_item.VIN}")
         #cfg_update_str = f" UPDATE Config  set LUT_TS ='{ts}' where id = {lut_item.ID};"
@@ -346,9 +332,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         '''Returns the id of the last bms record and the bms_id of the last A2D record. Good to ensure sync.'''
         a2d_select_str='select max(bms_id)  from A2D'
         bms_select_str = 'select max(id) from BMS'
-        self.cx = sqlite3.connect(self.db_path)
-        self.cx.isolation_level = None
-        cu = self.cx.cursor()
+        cu = self.get_cursor()
         #print(f"a2d_select_str: {a2d_select_str}")
         #print(f"bms_select_str: {bms_select_str}")
         res=cu.execute(a2d_select_str)
