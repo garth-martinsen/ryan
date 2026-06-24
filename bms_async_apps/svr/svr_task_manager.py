@@ -32,9 +32,6 @@ class SvrTaskManager:
        
     def load_config(self):
         cfg = self.dbi.get_config(0)
-        # cfg=CFG.Config(*cfg0)
-        #print(f"config0: {cfg}")
-        self.k=3.0
         FSR=cfg[0].ADC_FSR
         STEPS = cfg[0].ADC_STEPS
         self.lsb = FSR/STEPS
