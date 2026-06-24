@@ -26,12 +26,7 @@ clb1=Message('2026-2-23  15:31:21.54',200,4.095, 0.00012496948, 1, 0,0, clb_samp
 clb2=Message('2026-2-23  15:31:21.54',200,4.095, 0.00012496948, 2, 0,0, clb_samples)
 calibs=[clb0,clb1,clb2]
                
- # ws_sockets send strings so the following may not be required.
  
-fmt = "<23s 2B 4f 64h"
-msg2=json.dumps(measures[0])
-msg3=msg2.encode(FORMAT)
-print(f" Message size for measurement or calibration: {struct.calcsize(fmt)} bytes")
 
 # adc_msg to server len= 553 bytes.
 adc_msg_to_server =  {'code':101, 'timestamp': '2026-2-23  15:31:21.54',  "FSR": 4.095, "LSB":0.00012496948, 'type': 'm', 'chan': 1, "samples":  '[22657, 22654, 22651, 22653, 22655, 22657, 22651, \
