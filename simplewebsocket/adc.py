@@ -3,6 +3,7 @@
 from collections import namedtuple
 import json
 from message_cfg import measures, calibs , msr_samples,clb_samples
+import asyncio
 
 class ADC():
     def __init__(self):
@@ -10,18 +11,22 @@ class ADC():
 
     def build_response(self, msg):
         self.received_messages.append(msg)
-        if msg == 'sd':
-            return msg
-        else:
-            parts = msg.split(",")
-            purpose=parts[0]
-            chan=int(parts[1])
-            if purpose == '100':
-                return self.measure(chan)
-            if purpose == '200':
-                return self.calibrate(chan)
-            
-    def measure(self, chan):
+        print(f"msg received: {msg}")
+        #         if msg == 'sd':
+        #             return msg
+        #         else:
+        #             parts = msg.split(",")
+        #             purpose=parts[0]
+        #             chan=int(parts[1])
+        #             if purpose == '100':
+        #                 return await adc.measure(chan)
+        #             if purpose == '200':
+        #                 return self.calibrate(chan)
+     
+    async def handle_msg(self) :
+         print(f" Entered adc.handle_msg(msg)")
+         
+    async def measure(self, chan):
         return json.dumps(measures[chan] )
     
     def calibrate(self, chan):
