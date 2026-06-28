@@ -32,7 +32,7 @@ db_path =   '/Users/garth/DEV/ryan/sqliteDB/rt_db'
 #TODO: design handling of the following responses in svr_task_mgr info only
 # dict to display the dbi interface codes (cmds) and the arglist for each...
 
-funct_desc = {300: 'save_config(  msg : Config )',       302: 'sync_time().'
+funct_desc = {300: 'save_config(  msg : Config )',       302: 'sync_time()',
                        310: 'get_config( chan : int )',                 320:'save_to_bms( msg :BMS )' ,
                        330: 'list_bms( chan:int, atype:str) ',      340: 'get_bms_a2d_samples( bms_id : int)',
                        350: 'get_lut( chan:int)',                          352: 'get_lut_item(chan:int, vin:float)',
