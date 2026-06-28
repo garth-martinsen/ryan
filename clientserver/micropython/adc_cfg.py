@@ -10,19 +10,16 @@ import ads1x15
 ssid = 'Ziply1824'
 password = "1408945739"
 names = ["C42", "C84", "C126"]
-adc_address =micropython.const(72)
-adc_sample_rate = micropython.const(3)               #64sps
-adc_gain = micropython.const(0)                            # max voltage= 6.144 V for chan 0, else will be set by channel
+ADC_ADDRESS =micropython.const(72)
+ADC_SAMPLE_RATE = micropython.const(3)               #64sps
+ADC_GAIN = micropython.const(1)                            #all channels => FSR4.096 
 C42=micropython.const(0)
 C84=micropython.const(1)
 C126=micropython.const(2)
 
-#pins   6 pins
-gate_42=Pin(25, Pin.OUT, Pin.PULL_UP)
-gate_84=Pin(26, Pin.OUT, Pin.PULL_UP)
-gate_126=Pin(27, Pin.OUT, Pin.PULL_UP)
-scl=Pin(22)
-sda=Pin(21)
+
+scl=Pin(5)
+sda=Pin(4)
 irq_pin = Pin(17, Pin.IN, Pin.PULL_UP)
 
 #namedtuples
@@ -31,11 +28,11 @@ Config = namedtuple("Config", ( "cfg_id", "owner", "app_id", "app_desc", "chan_i
 Measurements = namedtuple("Measurements",("circuit_name", "a2d", "uclicks"))                                                                                        #5 fields
 Stats = namedtuple("Stats", ("circuit_name",  "vin", "sample_sz","a2d_mean", "vm_mean", "sd", "sample_period","store_time","gate_time"))                                                                                           #9 fields
 BMS = namedtuple("BMS", ('timestamp', 'type', 'chan',  'cfg_id', 'a2d',  'a2d_sd', 'sample_sz',  'vin','vm', 'vb',  'error', 'store_time', 'gate_time', 'sample_period',  'keep')  )   #15 fields
-GatePins = namedtuple("GatePins",("C_42", "C_84", "C_126"))
-AllPins = namedtuple("AllPins",("gate_42", "gate_84", "gate_126", "sda", "scl", "alert"))
+# GatePins = namedtuple("GatePins",("C_42", "C_84", "C_126"))
+AllPins = namedtuple("AllPins",( "sda", "scl", "alert"))
 
-gatePins = [gate_42, gate_84, gate_126]
-allPins = AllPins(gate_42,gate_84,gate_126, sda, scl, irq_pin)
+
+allPins = AllPins( sda, scl, irq_pin)
 
 #arrays in flash memory for a2ds and uclicks
 _BUFFERSIZE = micropython.const(64)
