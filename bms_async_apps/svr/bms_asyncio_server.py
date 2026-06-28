@@ -66,9 +66,11 @@ class Server:
                     for k,v in self.clients.items():
                         i+=1
                         print(i, k, v)
-                        
-                    response = f'Server says: hello {data["SENDER"]}, welcome!'
-                    rspj=json.dumps(response) + "\n"
+                    sender = data["SENDER"]
+                    greeting = f"{sender}"
+                    svr_to_gui_msg = {"SENDER": "SVR", "RECEIVER" : sender, "CODE" : 1, "WELCOME": greeting}  
+                    # response = f'Server says: hello {data["SENDER"]}, welcome!'
+                    rspj=json.dumps(svr_to_gui_msg) + "\n"
                     writer.write(rspj.encode())
                     await writer.drain()
                 else:

@@ -1,4 +1,4 @@
-# file: svr_msg_processor.py  Offloads most of the work from the bms_async_server:  routes msgs,
+# file: svr_task_manager.py  Offloads most of the work from the bms_async_server:  routes msgs,
 # returns json-worthy, correct namedtuple. The bms_async_server has requirements: 1. manage client connections,
 # 2. receive json msgs,  restore python objects by json.loads(...), 2. delegate msg_processing to svr_msg_processor ,
 # 3.. send json-appropriate msgs to correct async_client.
@@ -35,6 +35,7 @@ class SvrTaskManager:
         FSR=cfg[0].ADC_FSR
         STEPS = cfg[0].ADC_STEPS
         self.lsb = FSR/STEPS
+        self.k = cfg[0].K_FACTOR
  
     def adc_setup_periodic(self, functions_dict, argslist):
         print("Not yet implemented TBD")
@@ -81,33 +82,49 @@ class SvrTaskManager:
             # for codes: 100,175,200 ,msg,with embedded msigid is forwarded to the ADC_client .
             if code in [100,175,200]:
                 await self.send_to_client("ADC", msg, clients)
-                response = {"CODE": code, "SENDER":"SVR","RECEIVER":"GUI","STATUS":"FORWARDED TO ADC"}
+                response = {"CODE": code, "SENDER":"SVR", "RECEIVER":"GUI","STATUS":"YOUR MESSAGE WAS FORWARDED TO ADC","MSGID":msg["MSGID"]}
                 await self.send_to_client("GUI", response, clients)
             if code in [101,201]:
-                result = await self.compute_stats(msg)
+                stats_result_dict = self.compute_stats(msg)
+                
+                print(f"result type {type(stats_result_dict)}  stats_result_dict: {stats_result_dict}")
                 # TODO 3: FINISH 101 201 ... format for needed cols for BMS table pass in correct arglist...
-                bms= BMS()
-                self.dbi.call_function(320, [ bms])
-                response = {"CODE": code, "SENDER":"SVR", "RECEIVER":"ADC","STATUS":"Computed, Persisted and Sent to GUI"}
-                await self.send_to_client("ADC", response, clients)
+                 #("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
+                store_to_bms_dict= {"ID" : "", "MSGID":msg["MSGID"], "VERSION": msg["VERSION"], "TIMESTAMP": msg["TIMESTAMP"],
+                                    "TYPE" : msg["TYPE"], "CHAN" : msg["CHAN"], "A2D_MEAN" : stats_result_dict["A2D_MEAN"],
+                                     "VM_MEAN" : stats_result_dict["VM_MEAN"], "VM_SD" :stats_result_dict["VM_SD"], "VB" :stats_result_dict["VB"],
+                                     "VIN" : msg["VIN"], "ERROR" :stats_result_dict["ERROR"], "SAMP_SZ" : msg["SAMP_SZ"],
+                                     "DISCARD_SZ" : stats_result_dict["DISCARD_SZ"], "KEEP_SZ" : stats_result_dict["KEEP_SZ"],
+                                     "A2D" : msg["A2D"]}
+                print(f"store_to_bms_dict for  BMS table: type: {type(store_to_bms_dict)} msg: { [store_to_bms_dict]} ")
+                bms_id = self.dbi.save_to_bms( store_to_bms_dict  )
+                # send to GUI  client the 'store_to_bms_dict'  adding bms_id and removing "A2D" 
+                store_to_bms_dict["ID"]=bms_id
+                store_to_bms_dict.pop("A2D")
+                await self.send_to_client("GUI", store_to_bms_dict, clients)
                 
               # all of the even codes > 300 will be tasked to the dbi and returned to the gui_client with code=code+1.
             if code > 300 and code%2 == 0:
-                 print(f"Request msg: { msg}")
-                 arglist=msg["ARGLIST"]
-                 data = self.dbi.call_function(code, arglist)
-                 response = {"CODE":code+1, "RECEIVER": 'GUI', "SENDER": "SVR", "MSGID": msg["MSGID"], "DATA": data}
-                 #print(f" dbi data: {data}")
-                 await self.send_to_client("GUI", response, clients)
-                 
+                print(f"Request msg: { msg}")
+                arglist=msg["ARGLIST"]
+                data = self.dbi.call_function(code, arglist)
+                response = {"CODE":code+1, "RECEIVER": 'GUI', "SENDER": "SVR", "MSGID": msg["MSGID"], "DATA": data}
+                #print(f" dbi data: {data}")
+                if code == 302:
+                    tm= self.dbi.call_function(302, [ ] )
+                    response = {"RECEIVER" : "ADC", "SENDER": "SVR", "TIME_SYNC": tm}
+                    if msg["SENDER"] =="ADC":
+                        await self.send_to_client("ADC" ,response, clients)
+                    else:
+                        await self.send_to_client("GUI" ,response, clients)
+
         except  Exception as e:
             print("Error:", e)
             print("file: " , e.__traceback__.tb_frame.f_code.co_filename)
             print("line no: " , e.__traceback__.tb_lineno)
-        
-
+            
     def compute_stats(self, msg):
-        '''This method will extract the samples from msg, to use in computations. msg["samp_sz"] will equal
+        '''This method will extract the a2d samples from msg, to use in computations. msg["samp_sz"] will equal
           len(samples) . This method then computes a2d mean, sd, and use them to  discard outliers.
           This will leave a new list of a2d samples called "keep". "KEEP_SZ"  will be len(keep)  and
           DISCARD_SZ= SAMP_SZ - KEEP_SZ. The second pass will  compute a2d mean/sd
@@ -119,38 +136,40 @@ class SvrTaskManager:
            database_interface_config.py. Fields are:  BMS_FIELDS =
            ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN",
            "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ") '''
-        print(f"entered Server compute function with: the samples ,LSB: {self.lsb}, k: {self.k} , vd_fract: {self.vd_fracts}")
-        chan = msg["chan"]
-        samples=msg["samples"]
-        samp_sz=len(samples)
+  
+        print(f"entered svr_task_manager.compute_stats(msg)  with: the A2D samples ,LSB: {self.lsb}, k: {self.k} , vd_fract: {self.vd_fracts}")
+        chan = msg["CHAN"]
+        samples = msg["A2D"]
+        samp_sz = len(samples)
+        print(f" k_factor, k: {self.k}")
         
-        vin = msg["vin"]
+        vin = msg["VIN"]
         m=self.mean(samples)
         vrs = [(x-m)*(x-m) for x in samples]
         sd = math.sqrt(self.mean(vrs))
         #discard outliers... may need to adjust k . To start, pass in k=3
         keep = [x for x in samples if abs(x-m) < (sd*self.k)]
-        #print("hw3")
-        # final pass: do stats on keep instead of all samples
+        print("hw3")
+        #final pass: do stats on keep instead of all samples
         keep_sz=len(keep)
         discard_sz = samp_sz - keep_sz
         print(f"samp_sz: {samp_sz}  keep_sz: {keep_sz}  discard: {len(samples)- keep_sz}")
-       #print("hw4")
+        print("hw4")
         m = round(self.mean(keep), 4)
         vrs =  [(x-m)*(x-m) for x in keep]
         sd = math.sqrt(self.mean(vrs))
         vm= round(m*self.lsb, 4)
-        #print("hw5")
+        print("hw5")
         vm_sd=round(sd*self.lsb, 8)
         vb = round(vm/self.vd_fracts[chan], 4)
-        #print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
+        print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
         error = round((float(vin) - vb), 6)
-        #print("hw7")
+        print("hw7")
      
-        bms = BMS("", msg["MSGID"], self.version, msg["TIMESTAMP"], msg["TYPE"],
-                       chan, m, vm, vm_sd, vb, vin, error, samp_sz, discard_sz, keep_sz)
-        #print(f"bms:  {bms}")
-        return bms
+        store_to_bms_dict = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version, "TIMESTAMP": msg["TIMESTAMP"], "TYPE" : msg["TYPE"],
+                       "CHAN": chan, "A2D_MEAN": m, "VM_MEAN": vm, "VM_SD": vm_sd, "VB": vb, "VIN": vin, "ERROR" : error, "SAMP_SZ":samp_sz, "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
+        print(f"store_to_bms_dict:  {store_to_bms_dict}")
+        return store_to_bms_dict
     
     def lookup_chan_vm(self,  chan:int, vm:float):
         '''Given any legitimate value for vm (measured voltage) in a channel, chan,

@@ -27,7 +27,7 @@ class DatabaseInterface:
         print(f"dbpath: {self.db_path} ")
         print(f"app_id: {self.app_id} ")
         print(f"version: {self.version}")
-        self.cfgs =  [] 
+        self.cfgs: List[Config(),Config(), Config()]= [[],[],[]]
         self.luts :List[OrderedDict] =[OrderedDict(),OrderedDict(),OrderedDict()]
         self.lut_timestamps:List[str] = ["","",""]
         self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
@@ -38,10 +38,11 @@ class DatabaseInterface:
     def create_function_dict(self):
             funct_dict  = dict()
             funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
+            funct_dict[302]= self. sync_time                                       # ( [] )
             funct_dict[310]= self.get_config                                        # ( [chan] )
             funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
             funct_dict[330]= self.list_bms                                           # ([ chan, type])
-            funct_dict[340]= self.get_bms_a2d_samples                            # ([ bms_id])
+            funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
             funct_dict[350]= self.get_lut                                              # ( [chan] )
             funct_dict[352]= self.get_lut_item                                     # ( [chan, vin] )
             funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
@@ -52,8 +53,11 @@ class DatabaseInterface:
             
     def call_function( self, code, argslist):
         print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
-        return self.funct_dict[code]( *argslist )
+        return self.funct_dict[code]( **argslist )
 
+    def sync_time(self):
+        return json.dumps(time.localtime())
+    
     def build_response(self, message):
         msg= f"Called dbi.build_response() with message: {message}"
         self.msg = json.loads(message)
@@ -67,7 +71,7 @@ class DatabaseInterface:
         return json.dumps(response)
     
     def _timestamp(self):
-        """Returns float time.time()  eg: 1781978341.139051"""
+        '''Returns tuple   eg:  ime.struct_time(tm_year=2026, tm_mon=6, tm_mday=24, tm_hour=22, tm_min=17, tm_sec=35, tm_wday=2, tm_yday=175, tm_isdst=1)'''
         return  time.time()
 
     def human_timestamp(self, tm: float):
@@ -88,6 +92,7 @@ class DatabaseInterface:
          BMS_FIELDS in database_interface_config.py must be kept current!!!'''
         cols=[]
         vals=[]
+        msg.pop("ID")
         rejects=[]
         for k,v in msg.items():
             if k in BMS_FIELDS:
@@ -115,7 +120,7 @@ class DatabaseInterface:
         cu.execute("INSERT INTO MSGID VALUES(NULL, ?)", (time.time(),) )
         msgid = cu.lastrowid
         return msgid
-   
+ 
     def get_config(self, chan):
         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
         For this select, it is one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory,BMS]...TBD
@@ -123,15 +128,15 @@ class DatabaseInterface:
         cfg = []
         #self.cx.row_factory = self._Config_namedtuple_factory
         cu =self.get_cursor()
-        select_str = f"SELECT * FROM CONFIG where  app_id = {self.app_id} and version = {self.version} and chan = {chan}"
-        print("select_str: ", select_str)
+        select_str = f"SELECT * FROM CONFIG where  app_id = {self.app_id} and chan = {chan} and version = {self.version};"
+        #print("select_str: ", select_str)
         # Each row is a channel.
         for row in cu.execute(select_str):
-            print("row: ", row )
+            #print("row: ", row)
             cfg.append(Config(*row))
-        #self.cfgs[chan]=cfg
-        print(f"cfg: {cfg}")
+        self.cfgs[chan]=cfg
         return cfg
+       # self.vd_fracts = cfg["vd_fracts"]
      
     def get_vd_fracts(self ):
         od_vd_fracts = OrderedDict()
@@ -152,24 +157,26 @@ class DatabaseInterface:
     def save_to_bms(self , msg):
         ''' Saves summary fields for both types ['m','c'] to the same database table, bms.Summary fields are :
  (ID | MSGID | VERSION | TIMESTAMP | TYPE | CHAN | A2D_MEAN | VM_MEAN |  VM_SD  |  VB  | VIN  |  ERROR  | SAMP_SZ | DISCARD_SZ | KEEP_SZ ).
- Also Saves the A2D samples embedded in msg to the A2D table with the bms_id to link the two tables.A2D Fields are: ( ID | BMS_ID | SAMPLES). where samples is a string
+ Also Saves the A2D samples embedded in msg to the A2D table with the bms_id to link the two tables.A2D Fields are: ( ID | BMS_ID | A2D). where samples is a string
 holding list(64 int sample values). This can be expanded in length to have 128 samples etc.
 arg msg is a dict loaded by ADC  with raw data and augmented by Server with  computations.
- json is used to convert from string dict. '''
-       
+ json is used to convert from string dict. Returns bms_id '''
+        print(f"...Entered function: save_to_bms(msg) msg_type: {type(msg)} msg: {msg} ")
         atype = msg["TYPE"]
-        samples = msg.pop("SAMPLES")
+        a2d = msg["A2D"]
         timestamp = msg['TIMESTAMP']  # this is from the ADC timestamp.
         chan = msg["CHAN"]
         vin = msg["VIN"]
-        cols, vals = self._create_cols_vals(msg)      #should only contain the summary fields.
-        print(f"called dbi. save_measurement() with cols: {cols} values: {vals} ")
+        # filters out msg fields not in BMS. Also remove "ID" so that db puts in next ID.
+        cols, vals = self._create_cols_vals(msg)      
+         
+        print(f"called dbi. save_measurement() with cols: {cols[1:]} values: {vals[1:]} ")
         bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "   
         cu = self.get_cursor()
         cu.execute(bms_insert_str)
         bms_id=cu.lastrowid
         print(f"bms_id: {bms_id}")
-        a2d_insert_str = f"insert into A2D values(NULL, {bms_id}, '{samples}')"
+        a2d_insert_str = f"insert into A2D values(NULL, {bms_id}, '{a2d}')"
         #print(f"a2d_insert_str: {a2d_insert_str}")
         cu.execute(a2d_insert_str)
         self.cx.commit()
