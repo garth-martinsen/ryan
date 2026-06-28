@@ -10,7 +10,7 @@ OUTGOING_MSG = namedtuple("OUTGOING_MSG", ("SENDER", "RECEIVER","TIMESTAMP",  "C
 msg = 'GUI, ADC, 2026-5-20  17:40:27,  {code} , {atype} , {chan},  {vin} '  
 
 #global vars
-funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time()'
+funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time()',
                         310: 'get_config( chan : int )', 320: 'save_to_bms( msg :BMS )',
                         330: 'list_bms( chan:int, atype:str) ', 340: 'get_bms_a2d_samples( bms_id : int)',
                         350: 'get_lut( chan:int)', 352: 'get_lut_item(chan:int, vin:float)',
@@ -25,6 +25,7 @@ def show_dbi_functions():
 #     """Returns local time as string, eg: YYYY-mm-DD HH:MM:SS"""
 #     dt =time.localtime(tm)
 #     return f"{dt[0]}-{dt[1]}-{dt[2]}  {dt[3]}:{dt[4]}:{dt[5]}"  # exclude day-of-week and julian date.
+
 def _timestamp():
     ''' Returns a float eg: ... if this float is input to function human_timestamp( it will return a human readable string'''
     return time.time()
@@ -33,7 +34,25 @@ def human_timestamp( tm: float):
     ''' Returns human-readable string  eg: '2026-06-20 10:59:01' '''
     return datetime.datetime.fromtimestamp(tm).strftime('%Y-%m-%d %H:%M:%S')
 
-def get_msg():
+async def receiver(reader):
+    print("Receiver started")
+    while True:
+        line = await reader.readline()
+        print("raw =", repr(line))
+        if not line:
+            print("SERVER CLOSED CONNECTION")
+            break
+        data = json.loads(line.decode())
+        print("Server says:", data)
+        
+async def sender(writer):
+    while True:
+        msg = await get_msg()
+
+        writer.write((json.dumps(msg)+"\n").encode())
+        await writer.drain()
+        
+async def get_msg():
     ''' Formats msg with cmd values to the Server'''
     # print("Respond to promps. They will change depending on code (command). ")
     ts = _timestamp()
@@ -64,30 +83,21 @@ def get_msg():
 
 async def tcp_client():
     reader, writer = await asyncio.open_connection( '192.168.254.19', 8888 )
-    # send a hello msg to introduce me to the server
+
+    # Register with the server first
     hello = { "SENDER":"GUI", "CODE":0 }
-    msg = json.dumps(hello) + "\n"
-    writer.write(msg.encode())
-    await writer.drain()
     
-    #   the get_msg() emulates a GUI with user entering the values to be sent to the server.
-    # bug fixed: DONE the reader happens first, then another msg is created in get_msg() and sent out.
-    while True:
-        print("GUI client is waiting for server message")
-        line = await reader.readline()   # blocks until reads "\n"
-        dataj = json.loads(line.decode())
-        print("\tServer says :", dataj)
-        # Input next command for Svr or ADC to fulfill...
-        if not isinstance(dataj, dict):
-            print("Ignoring non-command message:", dataj)
-            continue
-        msg = get_msg()
-        packet = json.dumps(msg) + "\n"
-        writer.write(packet.encode())
-        await writer.drain()
+    writer.write((json.dumps(hello) + "\n").encode())
+    await writer.drain()
+    print("GUI registered with server")
+   
+    # now run forever 
+    await asyncio.gather( receiver(reader), sender(writer))   
 
     #writer.close()
     #await writer.wait_closed()
+   
+   
 print(show_dbi_functions())
 
 asyncio.run(tcp_client())
