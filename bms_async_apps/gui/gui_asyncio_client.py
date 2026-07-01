@@ -3,6 +3,7 @@ from collections import namedtuple, OrderedDict
 import asyncio
 import json
 import time
+from copy import deepcopy
 
 
 INCOMING_MSG = namedtuple("INCOMING_MSG", ("SENDER", "RECEIVER","TIMESTAMP", "MSGID", "CODE", "TYPE","CHAN","SAMP_SZ","DISCARD_SZ","KEEP_SZ","A2D_MEAN","VM_MEAN","VM_SD","VB","VIN","ERROR"))
@@ -16,6 +17,21 @@ funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time(
                         350: 'get_lut( chan:int)', 352: 'get_lut_item(chan:int, vin:float)',
                         360: 'get_lut_timestamp( chan:int )', 370: 'update_lut_pair(  _id:int,   vm:float,   vin:float)',
                         380: 'update_lut_timestamp( chan:int )', 390: 'get_vd_fracts( )'})
+
+# Flet will replace this Template dict and just make cmds as the User dictates... Timestamp will be set upon msg prep.
+gui_cmd_templates = OrderedDict({
+                         1: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+                            'CODE': 302, 'ARGLIST': [] },
+                        2: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+                            'CODE': 100, 'ARGLIST': [], 'TYPE': 'm', 'VIN': 0.0},
+                        3: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+                            'CODE': 200, 'ARGLIST': [], 'VIN': 12.14, 'CHAN': 2},
+                        4: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+                            'CODE': 174, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}, # 1 minute periods (60 seconds)
+                        5: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}})
+# periodic example: for 3 days at 1/2 hour periods: period=1800 sec  reps=144
+# periodic example:for 3 days at 1 hour period: period=3600 sec, reps =72 
 
 def show_dbi_functions():
     for k,v in funct_desc.items():
@@ -32,8 +48,8 @@ def _timestamp():
     
 def human_timestamp( tm: float):
     ''' Returns human-readable string  eg: '2026-06-20 10:59:01' '''
-    return datetime.datetime.fromtimestamp(tm).strftime('%Y-%m-%d %H:%M:%S')
-
+    return time.localtime(tm).strftime('%Y-%m-%d %H:%M:%S')
+    
 async def receiver(reader):
     print("Receiver started")
     while True:
@@ -43,43 +59,33 @@ async def receiver(reader):
             print("SERVER CLOSED CONNECTION")
             break
         data = json.loads(line.decode())
-        print("Server says:", data)
-        
-async def sender(writer):
-    while True:
-        msg = await get_msg()
+        print("\tServer says:", data)
 
-        writer.write((json.dumps(msg)+"\n").encode())
+# TODO: The sender must be asyncio , python input statement blocks so they cannot be used.
+# Flet will have to get the inputs without blocking... The following iterates thru 3 gui_cmd_templates .
+async def sender(writer):
+    for template in gui_cmd_templates.values():
+        msg = deepcopy(template)
+        msg["TIMESTAMP"] = time.time()
+        print("sending", msg)
+        writer.write((json.dumps(msg) + "\n").encode())
         await writer.drain()
-        
-async def get_msg():
-    ''' Formats msg with cmd values to the Server'''
-    # print("Respond to promps. They will change depending on code (command). ")
-    ts = _timestamp()
-    receiver = input("RECEIVER: " )
-    sender = 'GUI'
-    code = int(input("CODE: " ))
-    msg =  {"RECEIVER": receiver , "SENDER" : sender, "TIMESTAMP": ts, "CODE": code}
-    msg["ARGLIST"]=[]
-    if code == 1:
-        print(msg)
-    if code == 175:
-        msg["PERIOD" ]= int(input("period: "))
-        msg["REPS"]  =int( input("repetitions: "))
-    if code  == 100:
-        msg["TYPE"] = input("type: " )
-        msg["VIN"] = 0.0
-    if code == 200:
-        msg["VIN"] = float(input("vin: "))
-        msg["CHAN"] = int(input("chan: " ))
-    if code in [ 300,310,320, 330, 340, 350, 360, 370]:
-        for k, v in funct_desc.items():
-            print(k,v)
-            
-        msg["ARGLIST"] = json.loads(input("arglist: "))      #input returns a stringified list . needs to be a list
-        
-    print(f"\tGUI client sending msg: {msg}")
-    return msg  
+        await asyncio.sleep(1)
+  
+#     msg = deepcopy({'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+#                             'CODE': 174, 'ARGLIST': [], 'PERIOD': 1800, 'REPS': 144}) # 3 days - every 1/2 hour
+#     msg["TIMESTAMP"] = time.time()
+#     print("sending", msg)
+#     writer.write((json.dumps(msg) + "\n").encode())
+#     await writer.drain()
+#
+#     msg = deepcopy({'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
+#                              'CODE': 302, 'ARGLIST': []}) #request for sync_time
+#     msg["TIMESTAMP"] = time.time()
+#     print("sending", msg)
+#     writer.write((json.dumps(msg) + "\n").encode())
+#     await writer.drain()
+
 
 async def tcp_client():
     reader, writer = await asyncio.open_connection( '192.168.254.19', 8888 )
