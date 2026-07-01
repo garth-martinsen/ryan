@@ -79,8 +79,8 @@ class SvrTaskManager:
             print(f"msg: {msg}")
             code = int(msg["CODE"])
             print("reached : hw 1")       
-            # for codes: 100,175,200 ,msg,with embedded msigid is forwarded to the ADC_client .
-            if code in [100,175,200]:
+            # for codes: 100,174,200 ,msg,with embedded msigid is forwarded to the ADC_client .
+            if code in [100,174,200, 274]:
                 await self.send_to_client("ADC", msg, clients)
                 response = {"CODE": code, "SENDER":"SVR", "RECEIVER":"GUI","STATUS":"YOUR MESSAGE WAS FORWARDED TO ADC","MSGID":msg["MSGID"]}
                 await self.send_to_client("GUI", response, clients)
@@ -107,12 +107,13 @@ class SvrTaskManager:
             if code > 300 and code%2 == 0:
                 print(f"Request msg: { msg}")
                 arglist=msg["ARGLIST"]
+                print(f" arglist: {arglist}")
                 data = self.dbi.call_function(code, arglist)
                 response = {"CODE":code+1, "RECEIVER": 'GUI', "SENDER": "SVR", "MSGID": msg["MSGID"], "DATA": data}
                 #print(f" dbi data: {data}")
                 if code == 302:
                     tm= self.dbi.call_function(302, [ ] )
-                    response = {"RECEIVER" : "ADC", "SENDER": "SVR", "TIME_SYNC": tm}
+                    response = {"RECEIVER" : "ADC", "SENDER": "SVR", "CODE": 303, "TIME_SYNC": tm}
                     if msg["SENDER"] =="ADC":
                         await self.send_to_client("ADC" ,response, clients)
                     else:
@@ -125,52 +126,94 @@ class SvrTaskManager:
             
     def compute_stats(self, msg):
         '''This method will extract the a2d samples from msg, to use in computations. msg["samp_sz"] will equal
-          len(samples) . This method then computes a2d mean, sd, and use them to  discard outliers.
+          len(a2d) . This method then discard outliers by using dict slots (histogram ) The a2d_count that holds
+          the most a2d_samples wins . Then a filter excludes samples that are more than 5 counts from the winner.
           This will leave a new list of a2d samples called "keep". "KEEP_SZ"  will be len(keep)  and
-          DISCARD_SZ= SAMP_SZ - KEEP_SZ. The second pass will  compute a2d mean/sd
-          based on the keep samples.  vm_mean (a2d_mean*LSB) is used to lookup the value for vb.
+          DISCARD_SZ= SAMP_SZ - KEEP_SZ. Stats are computed from keep: mean, sd. The LSB is used to
+          compute vm_mean and vm_sd.  vm_mean (a2d_mean*LSB) is used to lookup the value for vb.
           If msg['type'] == 'c', (calibration) the msg embedded code will be 200  and will have embedded vin .
           The error is computed (error = vin-vb)
           Returns a BMS tuple with augmented values: a2d_mean, vm_mean, vm_sd, vb,vin, error,
            "DISCARD_SZ", "KEEP_SZ  embedded. The entire BMS namedtuple is defined in
-           database_interface_config.py. Fields are:  BMS_FIELDS =
+           database_interface_config.py. Currently, Fields are:  BMS_FIELDS =
            ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN",
            "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ") '''
   
         print(f"entered svr_task_manager.compute_stats(msg)  with: the A2D samples ,LSB: {self.lsb}, k: {self.k} , vd_fract: {self.vd_fracts}")
         chan = msg["CHAN"]
-        samples = msg["A2D"]
-        samp_sz = len(samples)
+        a2d = msg["A2D"]
+        samp_sz = len(a2d)
         print(f" k_factor, k: {self.k}")
+        #==========================
+        slots={}
+        for x in a2d:
+            abin = slots.get(x, [])
+            abin.append(x)
+            slots[x]=abin
+        # initialize low
+        winning_score=1
+        winner = 1
+        for k,v in slots.items():
+            if len(v) > winning_score:
+                winner = k
+                winning_score=len(v)
+        print(f"winner a2d: {winner} with count of: {winning_score}")
         
-        vin = msg["VIN"]
-        m=self.mean(samples)
-        vrs = [(x-m)*(x-m) for x in samples]
-        sd = math.sqrt(self.mean(vrs))
-        #discard outliers... may need to adjust k . To start, pass in k=3
-        keep = [x for x in samples if abs(x-m) < (sd*self.k)]
-        print("hw3")
-        #final pass: do stats on keep instead of all samples
+        # Filter out outliers by keeping only counts within 5 counts of winner
+        keep = [x for x in a2d if abs(x-winner) < 5 ]
         keep_sz=len(keep)
         discard_sz = samp_sz - keep_sz
-        print(f"samp_sz: {samp_sz}  keep_sz: {keep_sz}  discard: {len(samples)- keep_sz}")
+        print(f"Doing stats on {len(keep)} a2d samples.")
+        m = self.mean(keep)
+        vrs= [(x-m)**2 for x in keep]
+        sd =math.sqrt(self.mean(vrs))
+        vin= msg["VIN"]
+        print("hw3")
+        vm_m= round(m*self.lsb, 4)
         print("hw4")
-        m = round(self.mean(keep), 4)
-        vrs =  [(x-m)*(x-m) for x in keep]
-        sd = math.sqrt(self.mean(vrs))
-        vm= round(m*self.lsb, 4)
-        print("hw5")
         vm_sd=round(sd*self.lsb, 8)
-        vb = round(vm/self.vd_fracts[chan], 4)
+        vb = round(vm_m/self.vd_fracts[chan], 4)
         print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
         error = round((float(vin) - vb), 6)
-        print("hw7")
-     
-        store_to_bms_dict = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version, "TIMESTAMP": msg["TIMESTAMP"], "TYPE" : msg["TYPE"],
-                       "CHAN": chan, "A2D_MEAN": m, "VM_MEAN": vm, "VM_SD": vm_sd, "VB": vb, "VIN": vin, "ERROR" : error, "SAMP_SZ":samp_sz, "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
-        print(f"store_to_bms_dict:  {store_to_bms_dict}")
-        return store_to_bms_dict
-    
+        summary_dict  = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version,
+                                      "TIMESTAMP": msg["TIMESTAMP"], "TYPE" : msg["TYPE"],
+                                      "CHAN": chan, "A2D_MEAN": m, "VM_MEAN": vm_m, "VM_SD": vm_sd,
+                                      "VB": vb, "VIN": vin, "ERROR" : error, "SAMP_SZ":samp_sz,
+                                      "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
+        print(f"summary_dict:  {summary_dict}")
+        return summary_dict
+
+         
+#===========================
+        
+#         vin = msg["VIN"]
+#         m=self.mean(samples)
+#         vrs = 
+#         sd = math.sqrt(self.mean(vrs))
+#         #discard outliers... may need to adjust k . To start, pass in k=3
+#         keep = [x for x in samples if abs(x-m) < (sd*self.k)]
+#         
+#         #final pass: do stats on keep instead of all samples
+#         keep_sz=len(keep)
+#         discard_sz = samp_sz - keep_sz
+#         print(f"samp_sz: {samp_sz}  keep_sz: {keep_sz}  discard: {len(samples)- keep_sz}")
+#         print("hw4")
+#         m = round(self.mean(keep), 4)
+#         vrs =  [(x-m)*(x-m) for x in keep]
+#         sd = math.sqrt(self.mean(vrs))
+#         vm= round(m*self.lsb, 4)
+#         print("hw5")
+#         vm_sd=round(sd*self.lsb, 8)
+#         vb = round(vm/self.vd_fracts[chan], 4)
+#         print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
+#         error = round((float(vin) - vb), 6)
+#         print("hw7")
+#      
+#         store_to_bms_dict = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version, "TIMESTAMP": msg["TIMESTAMP"], "TYPE" : msg["TYPE"],
+#                        "CHAN": chan, "A2D_MEAN": m, "VM_MEAN": vm, "VM_SD": vm_sd, "VB": vb, "VIN": vin, "ERROR" : error, "SAMP_SZ":samp_sz, "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
+#         print(f"store_to_bms_dict:  {store_to_bms_dict}")
+#         return store_to_bms_dict
+
     def lookup_chan_vm(self,  chan:int, vm:float):
         '''Given any legitimate value for vm (measured voltage) in a channel, chan,
           Returns the estimate of  vb (battery voltage), using interpolation.

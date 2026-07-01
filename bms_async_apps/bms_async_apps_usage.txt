@@ -1,62 +1,75 @@
 # file: Usage    as of: 6/21/2026 
 1. open two terminal windows : svr, gui.
 2. navigate to the correct dir for each [bms_asyncio_apps/svr , gui] and  create virtual env in both
-3. in both terminals install dependencies using : pip install -r
-requirements.txt (requirements.txt is in dir bms_async_apps/)
+3. in both terminals install dependencies using : pip install -r requirements.txt (requirements.txt is in dir bms_async_apps/)
 4. in terminal 1 start the server:  python bms_async_server.py
-5. in terminal 2 start the gui_client:  python  gui_asyncio_client.py
-6. Start Thonny and run adc_asyncio.py with micropython environment.
+5. Start Thonny and run adc_asyncio.py with micropython environment.
+6. in terminal 2 start the gui_client:  python  gui_asyncio_client.py
 7. in gui terminal note the codes and functions they call...
-8. in gui terminal execute the following cmds. All cmds from GUI are marked SENDER: 'GUI':
+8. in gui terminal the cmds from dict gui_cmd_templates, are executed with
+timestamps (now).
+Example cmd: All cmds from GUI are marked SENDER: 'GUI':...
        Receiver : ADC
        CODE: 100   # Later substitute 200, then 175
        enter values when prompted
        arglist prompt requires a list so enter [x,y,...]  for each required arg ( check the codes and functions displayed...)
 
 Results:
-    Each client, upon starting, will present themself to the SVR. The Server will acknowledge them.
+    Each client, upon starting, will register with the SVR. The Server
+will acknowledge them. Then they will request a sync_time from the server
+(Code: 302).The ADC_client will set its RTC with the msg from the server.This
+is required because the ESP32 is Battery powered and does not know the correct 
+time upon starting...
     GUI client, upon sending a msg will display the msg and then the SVR response
     with lables like: GUI client sending msg:blah , Server says : blah
     The ADC client will display forwarded msgs like:
             ADC waiting for server message
             ADC decoded msg: Server says: blah...
     
-    1. for codes: 100, 200, 175 the Thonny will display the msg received from SVR.
+    1. for codes: 100, 175, 200,275,  the Thonny will display the msg received from SVR.
     2. for codes: 310, 330, 340, 350, 360,370,390:  The gui_client will display request and SVR response.
-    3. codes: 300,320,370,380:  The respective tables will be updated. This work may not all be implemented yet.
-    4. codes: 101, 201, 176 : are not implemented yet.
+    3. codes: 300,320,370,380:  The respective tables will be updated. This
+work is completed but needs testing.
+    4. codes: 101, 201, 176,276 : will be saved to db tables and forwarded to GUI.
     
     example output from the SVR:
-        Request msg: {'RECEIVER': 'SVR', 'SENDER': 'GUI', 'TIMESTAMP': 1782103398.7597802, 'CODE': 330,
-                                  'ARGLIST': [1, 'm'], 'MSGID': 5149}
+        Request msg: {'RECEIVER': 'SVR', 'SENDER': 'GUI', 'TIMESTAMP': 1782103398.7597802, 'CODE': 330, 'ARGLIST': [1, 'm'], 'MSGID': 5149} .Requests a list of bms records for chan 1 of type 'm' (measure).
          DBI says: code: 330   function: list_bms argslist: [1, 'm']
-	Message sent to GUI : {"CODE": 331, "RECEIVER": "GUI", "SENDER": "SVR", "MSGID": 5149,
-                                                "DATA": [[2, 5010, 3, " 22:55:48 06/07/26 ", "m", 1, 21355.0, 2.6687, 0.00028,
-                                                7.9728, 0.0, -7.9728, 64, 2, 62], [4, 5010, 3, " 23:00:25 06/07/26 ", "m",
-                                                1, 21355.0, 2.6687, 0.00028, 7.9728, 0.0, -7.9728, 64, 2, 62],
-                                                [7, 5010, 3, " 23:49:12 06/13/26 ", "m", 1, 21355.0, 2.669375, 0.00028038,
-                                                 7.9747, 7.97, 0.02529, 64, 2, 62], ...]
+	Message sent to GUI : {"CODE": 331, "RECEIVER": "GUI", "SENDER": "SVR", "MSGID": 5149, "DATA": [[2, 5010, 3, " 22:55:48 06/07/26 ", "m", 1, 21355.0, 2.6687, 0.00028, 7.9728, 0.0, -7.9728, 64, 2, 62], [4, 5010, 3, " 23:00:25 06/07/26 ", "m", 1, 21355.0, 2.6687, 0.00028, 7.9728, 0.0, -7.9728, 64, 2, 62], [7, 5010, 3, " 23:49:12 06/13/26 ", "m", 1, 21355.0, 2.669375, 0.00028038, 7.9747, 7.97, 0.02529, 64, 2, 62], ...]
                            
                            etc...
     Note that request code: 330 results in a response code of 331  but that the msgid is the same in both request and response.
     
-  project files:   as of 6/23/2026
+  project files:   as of 6/30/2026
 bms_async_apps
 ├── adc
 │   ├── README
-│   └── adc_asyncio_client.py
+│   ├── adc.py
+│   ├── adc_asyncio_client.py
+│   ├── adc_cfg.py
+│   └── test_adc.py
 ├── bms_async_apps_usage.txt
+├── bms_async_apps_usage.txt~
 ├── gui
 │   ├── README
 │   └── gui_asyncio_client.py
 ├── requirements.txt
-└── svr
-    ├── README
-    ├── bms_asyncio_server.py
-    ├── database_interface.py
-    ├── database_interface_config.py
-    ├── dbi_records.py
-    ├── svr_task_manager.py
-    ├── test_dbi.py
-    └── test_svr_task_manager.py
+├── svr
+│   ├── README
+│   ├── __pycache__
+│   │   ├── database_interface.cpython-314.pyc
+│   │   ├── database_interface_config.cpython-314.pyc
+│   │   └── svr_task_manager.cpython-314.pyc
+│   ├── bms_asyncio_server.py
+│   ├── database_interface.py
+│   ├── database_interface_config.py
+│   ├── dbi_records.py
+│   ├── svr_task_manager.py
+│   ├── test_dbi.py
+│   └── test_svr_task_manager.py
+├── time_functs.py
+└── utilities
+    ├── create_gui_cmds.py
+    └── gen_dict_fetch.py
 
+6 directories, 24 files

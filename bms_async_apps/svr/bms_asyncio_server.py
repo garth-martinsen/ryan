@@ -14,7 +14,7 @@ ADC= namedtuple("ADC", ("RECEIVER", "SENDER", "TIMESTAMP", "MSGID", "CODE", "TYP
 DB_TO_GUI_MSG=namedtuple("DB_TO_GUI_MSG",("RECEIVER", "SENDER", "ID", "TIMESTAMP", "MSGID", "CODE", "TYPE",
                                           "CHAN","A2D_MEAN","VM_MEAN","VM_SD","VB", "VIN","ERROR",
                           "SAMP_SZ", "DISCARD_SZ","KEEP_SZ"))
-# ADC_CMDS = [100,175,200 ]
+# ADC_CMDS = [100,174,200 ]
 # DB_CMDS=[300,310, 312, 314, 350, 360, 362,364,370,372,374,372,374]
 # DB_RSPNS= [311, 313,315, 361,363,365,371,373,375]
 app_id=1

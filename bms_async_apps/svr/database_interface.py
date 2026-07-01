@@ -53,10 +53,31 @@ class DatabaseInterface:
             
     def call_function( self, code, argslist):
         print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
-        return self.funct_dict[code]( **argslist )
-
+        return self.funct_dict[code]( *argslist )
+    
+    def get_column_headers(self, table_name):
+        headers=[]
+        cu = self.get_cursor()
+        select_str = f" select * from {table_name}"
+        data = cu.execute(select_str)
+        for column in data.description:
+            headers.append(column[0])
+        return headers
+    
+    def get_schemas(self):
+        records=[]
+        cu=self.get_cursor()
+        str_select = "select sql from sqlite_schema where type='table'"
+        for row in cu.execute(str_select):
+            records.append(row)
+        print(f" schemas: {records}")
+        return records
+        
     def sync_time(self):
-        return json.dumps(time.localtime())
+        tlt=time.localtime()
+        #reformat for micropython 
+        uptlt = (tlt[0],tlt[1],tlt[2], tlt[6], tlt[3],tlt[4], tlt[5],0)
+        return json.dumps(uptlt)
     
     def build_response(self, message):
         msg= f"Called dbi.build_response() with message: {message}"
@@ -92,7 +113,8 @@ class DatabaseInterface:
          BMS_FIELDS in database_interface_config.py must be kept current!!!'''
         cols=[]
         vals=[]
-        msg.pop("ID")
+        if "ID" in msg:
+            msg.pop("ID")
         rejects=[]
         for k,v in msg.items():
             if k in BMS_FIELDS:
@@ -100,7 +122,7 @@ class DatabaseInterface:
                 vals.append(v)
             else:
                 rejects.append(k)
-        print(" Rejected columns: ", rejects)
+        print(" create cols_vals rejected columns: ", rejects)
         return (cols, vals)
 
     def list_all_choices(self):
