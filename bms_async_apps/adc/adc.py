@@ -74,8 +74,10 @@ try:
             print(f"Svr time_sync: {ts}")
             print(f" Before setting rtc : datetime: {self.rtc.datetime()}")
             self.rtc.datetime(json.loads(ts))   
-            print(f"After setting rtc.datetime: {self.rtc.datetime} ")
-            
+            print(f"After setting rtc.datetime: {self.rtc.datetime()} ")
+            response = {"CODE": 304, "ARGLIST":[], "SENDER":"ADC", "RECEIVER": "SVR","TIME_SYNC":self.rtc.datetime() }
+            return response
+        
         def _check_i2c(self):
             """if ADS1115 ADDR pin is grounded, should return [72]"""
             if i2c.scan()[0]  == 72:
