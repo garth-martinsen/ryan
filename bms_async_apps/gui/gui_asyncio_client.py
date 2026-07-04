@@ -29,7 +29,7 @@ gui_cmd_templates = OrderedDict({
                         4: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 174, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}, # 1 minute periods (60 seconds)
                         5: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}})
+                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5, "VINS": [4.046,803,12.11]}})
 # periodic example: for 3 days at 1/2 hour periods: period=1800 sec  reps=144
 # periodic example:for 3 days at 1 hour period: period=3600 sec, reps =72 
 
@@ -61,8 +61,9 @@ async def receiver(reader):
         data = json.loads(line.decode())
         print("\tServer says:", data)
 
-# TODO: The sender must be asyncio , python input statement blocks so they cannot be used.
-# Flet will have to get the inputs without blocking... The following iterates thru 3 gui_cmd_templates .
+# TODO: The sender must be asyncio , python input statement blocks,  so they cannot be used.
+# Flet will have to get the inputs without blocking...
+# To emulate FLET, the following iterates thru all  gui_cmd_templates in gui_cmd_timplates dict. .
 async def sender(writer):
     for template in gui_cmd_templates.values():
         msg = deepcopy(template)
