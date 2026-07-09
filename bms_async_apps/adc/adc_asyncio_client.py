@@ -26,6 +26,7 @@ async def route_msg( msg, writer):
     if cmd == 100:
         for chan in range(3):
             vin = 0.0
+            #atype='m'
             response = await adc.measure(msgid, chan,vin, cmd)
             response["CODE"]=101
             respj = json.dumps(response) +"\n"
@@ -33,34 +34,39 @@ async def route_msg( msg, writer):
             await writer.drain()
 
     if cmd == 200:
-        chan = msg["CHAN"]
-        vin = msg["VIN"]
-        response = await adc.measure(msgid, chan,vin, cmd)
-        respj = json.dumps(response) +"\n"
-        writer.write(respj.encode())
-        await writer.drain()
+        args = msg["ARGLIST"]
+        print("args: ", args)
+        vins=args[0]
+        for chan in range(3):
+            vin = vins[chan]
+            response = await adc.measure(msgid, chan,vin, cmd)
+            respj = json.dumps(response) +"\n"
+            writer.write(respj.encode())
+            await writer.drain()
+            
     # start periodic measurements...        
     elif cmd == 174:
         ''' Gets period and reps from msg, then in nested for loops, measures and sends for ea chan.
            Then asyncio.sleeps for period seconds, then repeats until all of the reps are done.'''
-        # periodic measurements are just measures (100) so reset cmd to 100
+        # periodic measurements are just measures (100) so use cmd = 100
         cmd=100
         period = msg["PERIOD"]
         reps = msg["REPS"]
         print(f"ADC responding to the 174 cmd (start_periodic_measurements for period: {period} seconds and reps: {reps}")
         reps = reps
         reps_done = 0
-        vin = 0.0     # always vin=0.0 for a measurement but not a calibration
+        vin = 0.0     #  for a measurement  vin=0.0 , but vin is passed in for a calibration
         for cnt in range(reps):
             for chan in range(3):
                 response = await adc.measure( msgid, chan,vin, cmd)
                 writer.write((json.dumps(response) +"\n").encode())
                 await writer.drain()
-            await asyncio.sleep(period)
-            reps_done  += 1
-            print(f"\tFor command 174 reps_done: {reps_done} of requested reps: {reps}")
+                await asyncio.sleep(period)
+                reps_done  += 1
+                print(f"\tFor command 174 reps_done: {reps_done} of requested reps: {reps}")
         print(f"All {reps} repetitions were completed in start_periodic_measurements (174) cmd")
     # many repeated calibrations, same as 174 except type='c' and vin is the truth value.   
+   
     elif cmd == 274:
         # repeated 200 cmd reps times so set cmd to 200 for each call to measure.
         cmd=200
@@ -80,9 +86,9 @@ async def route_msg( msg, writer):
                 response = await adc.measure( msgid, chan,vins[chan], cmd)
                 writer.write((json.dumps(response) +"\n").encode())
                 await writer.drain()
-            await asyncio.sleep(period)
-            reps_done  += 1
-            print(f"\tFor cmd: 274  the reps_done: {reps_done} of requested reps: {reps}")
+                await asyncio.sleep(period)
+                reps_done  += 1
+                print(f"\tFor cmd: 274  the reps_done: {reps_done} of requested reps: {reps}")
         print(f"\tAll {reps} repetitions were completed in start_periodic_calibrations (274) cmd")
 
 #TODO 3: Finish/DEBUG block  303 for rtc time setting;
