@@ -8,8 +8,10 @@ chardet==5.2.0
 charset-normalizer==3.4.7
 click==8.4.2
 cookiecutter==2.7.1
+dataclasses==0.6
 fastapi==0.139.0
 flet==0.85.3
+flet-charts==0.85.3
 flet-cli==0.85.3
 flet-desktop==0.85.3
 flet-web==0.85.3
