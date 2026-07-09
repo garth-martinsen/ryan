@@ -7,8 +7,8 @@ from copy import deepcopy
 
 
 INCOMING_MSG = namedtuple("INCOMING_MSG", ("SENDER", "RECEIVER","TIMESTAMP", "MSGID", "CODE", "TYPE","CHAN","SAMP_SZ","DISCARD_SZ","KEEP_SZ","A2D_MEAN","VM_MEAN","VM_SD","VB","VIN","ERROR"))
-OUTGOING_MSG = namedtuple("OUTGOING_MSG", ("SENDER", "RECEIVER","TIMESTAMP",  "CODE", "TYPE","CHAN","VIN"))
-msg = 'GUI, ADC, 2026-5-20  17:40:27,  {code} , {atype} , {chan},  {vin} '  
+OUTGOING_MSG = namedtuple("OUTGOING_MSG", ("SENDER", "RECEIVER","TIMESTAMP",  "CODE", "ARGLIST"))
+#msg = 'GUI, ADC, 2026-5-20  17:40:27,  {code} , {atype} , {chan},  {vin} '  
 
 #global vars
 funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time()',
@@ -25,7 +25,7 @@ gui_cmd_templates = OrderedDict({
                         2: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 100, 'ARGLIST': [], 'TYPE': 'm', 'VIN': 0.0},
                         3: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 200, 'ARGLIST': [], 'VIN': 12.14, 'CHAN': 2},
+                            'CODE': 200, 'ARGLIST': [[4.054,8.0,12.08] ] },
                         4: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 174, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}, # 1 minute periods (60 seconds)
                         5: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
@@ -54,13 +54,13 @@ async def receiver(reader):
     print("Receiver started")
     while True:
         line = await reader.readline()
-        print("raw =", repr(line))
+        #print("raw =", repr(line))
         if not line:
             print("SERVER CLOSED CONNECTION")
             break
         data = json.loads(line.decode())
         print("\tServer says:", data)
-
+    
 # TODO: The sender must be asyncio , python input statement blocks,  so they cannot be used.
 # Flet will have to get the inputs without blocking...
 # To emulate FLET, the following iterates thru all  gui_cmd_templates in gui_cmd_timplates dict. .
@@ -87,6 +87,9 @@ async def sender(writer):
 #     writer.write((json.dumps(msg) + "\n").encode())
 #     await writer.drain()
 
+async def get_event_loop():
+     loop =asyncio.get_event_loop()
+     return loop
 
 async def tcp_client():
     reader, writer = await asyncio.open_connection( '192.168.254.19', 8888 )
