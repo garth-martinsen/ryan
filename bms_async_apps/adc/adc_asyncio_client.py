@@ -1,32 +1,33 @@
 # file: adc_asyncio_client.py
-
+from common  import bms_config 
 from collections import namedtuple
 from adc import ADC
 import asyncio
 import json
 from machine import RTC
-version = 3
+
+# print("Imported from bms_config the following:")
+# print("SVR_IP:", bms_config.SVR_IP)
+# print("SVR_PORT: ", bms_config.SVR_PORT)
+# print("VERSION: ", bms_config.VERSION)
 
 #global variables...
-adc =  ADC(version)
-svr_ip =  '192.168.254.19',
-svr_port =8888
+adc =  ADC(bms_config.VERSION)
 reps=0
 reps_done=0
 period =0
 
 async def route_msg( msg, writer):
+    
     global reps, reps_done
     cmd = msg["CODE"]
-    msgid = msg.get("MSGID")
-    
+    msgid = msg.get("MSGID")   
     print(f" cmd: {cmd}  msgid: {msgid}  ")
     if cmd == 1:
         print(msg)
     if cmd == 100:
         for chan in range(3):
             vin = 0.0
-            #atype='m'
             response = await adc.measure(msgid, chan,vin, cmd)
             response["CODE"]=101
             respj = json.dumps(response) +"\n"
@@ -76,10 +77,6 @@ async def route_msg( msg, writer):
         print(f"ADC responding to the 274 cmd (start_periodic_measurements for period: {period} seconds and reps: {reps}")
         reps = reps
         reps_done = 0
-#         vin0= 4.062     # need to measure each chan and set its vin here
-#         vin1= 8.05
-#         vin2= 12.14
-#         vins=[vin0, vin1, vin2]
 
         for cnt in range(reps):
             for chan in range(3):
@@ -104,7 +101,7 @@ async def route_msg( msg, writer):
         
         
 async def tcp_client():   
-    reader, writer = await asyncio.open_connection( '192.168.254.19', 8888)
+    reader, writer = await asyncio.open_connection( bms_config.SVR_IP, bms_config.SVR_PORT)
     # send a hello msg to introduce me to the server
     hello = { "SENDER":"ADC", "CODE":0 }
     msg = json.dumps(hello) + "\n"
@@ -136,19 +133,12 @@ async def tcp_client():
 
 asyncio.run(tcp_client())
         
-            
-#         elif cmd == 302:
-#             print(f"msg: {msg}")
-#             time = msg["TIME"]
-#             adc.set_rtc(time)
-
-        
       
 
 
 
 
-    #TODO : Rule to send out msg :  1. msgj=json.dumps(msg) + "\n" -> 2. writer.write(msgj.encode() -> 3. await writer.drain()
+    #TODO : Rule to send out msg :  1. msgj=json.dumps(msg) + "\n" -> 2. writer.write(msgj.encode()) -> 3. await writer.drain()
     #     packet = json.dumps(msg) + "\n"
     #     writer.write(packet.encode())
     #     await writer.drain()
