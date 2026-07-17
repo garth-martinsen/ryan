@@ -1,18 +1,20 @@
-# file: Usage    as of: 7/3/2026 
+# file: Usage    as of: 7/17/2026 
 1. open two terminal windows : svr, gui.
-2. navigate to the correct dir for each [bms_asyncio_apps/svr , gui] and  create virtual env in both
+2. navigate to the proj dir (<YourPath>/bms_async_apps) for each and  create virtual env in both terminals
 3. in both terminals install dependencies using : pip install -r requirements.txt (requirements.txt is in dir bms_async_apps/)
-4. in terminal 1 start the server:  python bms_async_server.py
+4. in terminal 1 start the server:  
+                    python -m svr.bms_async_server
 5. Start Thonny and run adc_asyncio.py with micropython environment.
-6. in terminal 2 start the gui_client:  python  gui_asyncio_client.py
+6. in terminal 2 start the gui_client:  
+                    python -m gui.gui_asyncio_client
 7. in gui terminal note the codes and functions they call...
 8. in gui terminal the cmds from dict gui_cmd_templates, are timestamped with
-(now)and send to SVR which delegates to svr_task_manager to execute.
+(now)and sent to SVR which delegates to svr_task_manager to execute.
 9. gui_cmds can be stored in a dict to paste in gui_async_client.py  In the future, the FLET gui will generate the commands with the arglist...
   10. utility: gen_dict_cols.py will give column names and table schemas by calling the correct functions.
 Example cmd: All cmds from GUI are marked SENDER: 'GUI':...
        Receiver : ADC
-       CODE: 174   # Codes could be any of [100,200,174,274,]. You must provide the needed arglist as a [...]
+       CODE: 174   # Codes could be any of [100,200,174,274,]. You must provide the needed arglist as a list ([...])
        enter values when prompted in utility: create_gui_cmds.py 
        arglist prompt requires a list so enter [...]  for each required arg ( check the codes and functions displayed...)
 
@@ -23,10 +25,10 @@ will acknowledge them. Then they will request a sync_time from the server
 is required because the ESP32 is Battery powered and does not know the correct 
 time upon starting...
     GUI client, upon sending a msg will display the msg and then the SVR response
-    with lables like: GUI client sending msg:blah , Server says : blah
+    with lables like: GUI client sending msg:blah , Server says : blee blee, blee
     The ADC client will display forwarded msgs like:
             ADC waiting for server message
-            ADC decoded msg: Server says: blah...
+            ADC decoded msg: Server says: blee...
     
     1. for codes: 100, 174, 200,274,  the Thonny will display the msg received from SVR.
     2. for codes: 310, 330, 340, 350, 360,370,390:  The gui_client will display request and SVR response.
@@ -35,14 +37,14 @@ work is completed but needs testing.
     4. codes: 101, 201, 175,275 : will be saved to db tables and forwarded to GUI.
     
     example output from the SVR:
-        Request msg: {'RECEIVER': 'SVR', 'SENDER': 'GUI', 'TIMESTAMP': 1782103398.7597802, 'CODE': 330, 'ARGLIST': [1, 'm'], 'MSGID': 5149} .Requests a list of bms records for chan 1 of type 'm' (measure).
+        Request msg: {'RECEIVER': 'SVR', 'SENDER': 'GUI', 'TIMESTAMP': 1782103398.7597802, 'CODE': 330, 'ARGLIST': [1, 'm'], 'MSGID': 5149} . Requests a list of bms records for chan 1 of type 'm' (measure).
          DBI says: code: 330   function: list_bms argslist: [1, 'm']
 	Message sent to GUI : {"CODE": 331, "RECEIVER": "GUI", "SENDER": "SVR", "MSGID": 5149, "DATA": [[2, 5010, 3, " 22:55:48 06/07/26 ", "m", 1, 21355.0, 2.6687, 0.00028, 7.9728, 0.0, -7.9728, 64, 2, 62], [4, 5010, 3, " 23:00:25 06/07/26 ", "m", 1, 21355.0, 2.6687, 0.00028, 7.9728, 0.0, -7.9728, 64, 2, 62], [7, 5010, 3, " 23:49:12 06/13/26 ", "m", 1, 21355.0, 2.669375, 0.00028038, 7.9747, 7.97, 0.02529, 64, 2, 62], ...]
                            
                            etc...
     Note that request code: 330 results in a response code of 331  but that the msgid is the same in both request and response.
     
-  project files:   as of 7/3/2026 :
+  project files:   as of 7/17/2026 :
 ==================================
 bms_async_apps
 ├── adc
@@ -50,34 +52,28 @@ bms_async_apps
 │   ├── adc.py
 │   ├── adc_asyncio_client.py
 │   ├── adc_cfg.py
-│   ├── adc_ntp_time.py
 │   └── test_adc.py
 ├── bms_async_apps_usage.txt
-├── bms_async_apps_usage.txt~
-├── data
-│   ├── adc.log
-│   ├── commit_06_30-2026.txt
-│   ├── gui.log
-│   ├── hist12.csv
-│   └── svr.log
+├── common
+│   ├── __init__.py
+│   ├── bms_config.py
 ├── gui
 │   ├── README
+│   ├── bms_classes.py
+│   ├── bms_config_component.py
+│   ├── bms_lut_component.py
+│   ├── bms_record_component.py
+│   ├── flet_msg_creator.py
+│   ├── flet_router.py
 │   ├── gui_asyncio_client.py
-│   ├── main.py
-│   └── main_flet.py
+│   └── requirements.txt
 ├── requirements.txt
 ├── svr
 │   ├── README
-│   ├── __pycache__
-│   │   ├── database_interface.cpython-314.pyc
-│   │   ├── database_interface_config.cpython-314.pyc
-│   │   └── svr_task_manager.cpython-314.pyc
 │   ├── bms_asyncio_server.py
 │   ├── database_interface.py
 │   ├── database_interface_config.py
 │   ├── dbi_records.py
-│   ├── gmt_to_local_time.py
-│   ├── svr_ntp_time.py
 │   ├── svr_task_manager.py
 │   ├── test_dbi.py
 │   └── test_svr_task_manager.py
@@ -85,5 +81,4 @@ bms_async_apps
     ├── create_gui_cmds.py
     └── gen_dict_fetch.py
 
-7 directories, 33 files
-
+6 directories, 29 files
