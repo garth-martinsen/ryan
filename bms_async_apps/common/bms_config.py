@@ -14,3 +14,6 @@ APP_ID = 1
 VERSION = 3
 
 VINS= [4.094, 7.97, 12.01]
+
+db_path=<Your_Path>/db_rt
+
