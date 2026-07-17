@@ -5,7 +5,7 @@ import os
 print("os is : ", os.getcwd())
 
 SSID = "Ziply1824"
-SSID_PASSWORD = "1wantbr0adband#@!"
+SSID_PASSWORD = "XXXXXXXXXXXXXX"
 
 SVR_IP =  '192.168.88.2' 
 SVR_PORT =8888
