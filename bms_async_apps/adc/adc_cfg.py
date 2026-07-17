@@ -17,10 +17,7 @@ C42=micropython.const(0)
 C84=micropython.const(1)
 C126=micropython.const(2)
 
-#pins   6 pins
-# gate_42=Pin(25, Pin.OUT, Pin.PULL_UP)
-# gate_84=Pin(26, Pin.OUT, Pin.PULL_UP)
-# gate_126=Pin(27, Pin.OUT, Pin.PULL_UP)
+
 scl=Pin(5)
 sda=Pin(4)
 irq_pin = Pin(17, Pin.IN, Pin.PULL_UP)
