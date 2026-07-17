@@ -5,7 +5,7 @@ import os
 print("os is : ", os.getcwd())
 
 SSID = "Ziply1824"
-SSID_PASSWORD = "XXXXXXXXXXXXXX"
+SSID_PASSWORD = "secret"
 
 SVR_IP =  '192.168.88.2' 
 SVR_PORT =8888
@@ -15,5 +15,4 @@ VERSION = 3
 
 VINS= [4.094, 7.97, 12.01]
 
-db_path=<Your_Path>/db_rt
-
+db_path = '<Your path>/rt_db"
