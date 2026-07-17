@@ -43,19 +43,22 @@ Summary:
 
 
 Commands (codes) that the Gui_async_client can send:
-100, 150, 152, 175, 200, 300, 310, 350, 360, 370 
+100, 174, 200, 274, 302, 310, 350, 360, 370 
 
 Delegated to the database_interface.py
 Requestor must embed the required argslist, [...],  in the msg along with the code.
 Following functions can be activated from database_interface.call_function(code:int, arglist: list)
- 
-   functions_dict  = dict()                                              # argslist
-        functions_dict[150]= self.list_records                           # ([ chan, type])
-        functions_dict[152]= self.get_a2d_samples                        # ([bms_id])
-        functions_dict[300]= self.save_config                            # ([cfg_id, msg:Config])
-        functions_dict[310]= self.load_config                            # ([chan] )
-        functions_dict[350]= self.update_lut_pair                        # ([ chan, id, vm, vin] )    
-        functions_dict[360]= self.get_lut                                # ([chan] )
-        functions_dict[370]= self.get_lut_timestamp                      # ([ chan ])
-        self.functions_dict = functions_dict
+            funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
+            funct_dict[302]= self. sync_time                                       # ( [] )
+            funct_dict[310]= self.get_config                                        # ( [chan] )
+            funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
+            funct_dict[330]= self.list_bms                                           # ([ chan, type])
+            funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
+            funct_dict[350]= self.get_lut                                              # ( [chan] )
+            funct_dict[352]= self.get_lut_item                                     # ( [chan, vin] )
+            funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
+            funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
+            funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
+            funct_dict[390]= self.get_vd_fracts                                  #([])
+            return funct_dic 
 # This functions_dict is part of database_interface.py
