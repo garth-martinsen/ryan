@@ -1,7 +1,7 @@
 #file: adc.py
-# Plan: strip out Gates, LUTS, STATS, format msg to send to dbs: [frm,to,id,code, timestamp, chan, type, vin, samples.] 
+# Plan: strip out Gates, LUTS, STATS, format msg to send to dbs: [SENDER,RECEIVER,MSGID,CODE, TIMESTAMP, CHAN, TYPE, VIN, [A2D]] 
 # file: copy simple_adc.py  class  as adc.py to gather a2d samples for a circuit, process them and prepare report for server. SIMPLIFY!!
-# Goal1:    adc_client.py TBD:  receive and interpret msg from SVR ; call ADC method for 100,175, 200 , 
+# Goal1:    adc_client.py TBD:  receive and interpret msg from SVR ; call ADC method for 100,174, 200 , 274
 #Goal2:  Return msg: msg from ADC eg:  {"frm": "adc", "to": "dbs", "id": 1001, "code": 101, "timestamp": "2026-4-29_18:31:20", "chan": 0, "type": "m", "vin": null, "samples": [16999, 17003, 17001, 17000, 17003, 17000, 17002, 16999, 16998, 16999, 17001, 17002, 16999, 17002, 17000, 17003, 16998, 17003, 16997, 17001, 17000, 17003, 17000, 17002, 17001, 16999, 17001, 16998, 16999, 16998, 16999, 17003, 16998, 16999, 17002, 17001, 17000, 16999, 16997, 17003, 16997, 16997, 17001, 17000, 16998, 17001, 16998, 16997, 17002, 16998, 16997, 16998, 16999, 17003, 17003, 17000, 16997, 16998, 17003, 17002, 16997, 16998, 17003, 16999]}
 # Goal3: Add new code to synchronize time from SVR.
 
@@ -10,7 +10,8 @@
 
 import asyncio
 from collections import OrderedDict, namedtuple
-from time import ticks_us, ticks_diff, ticks_ms, localtime, time
+#from time import ticks_us, ticks_diff, ticks_ms, localtime, time
+from common import bms_config
 import math
 import json
 from ads1x15 import ADS1115
@@ -43,8 +44,8 @@ try:
     The measurement cmd can be of two types: calibrate (code=200, vin is not 0) and plain measure (code=100, vin=0).
     The msg id from the requesting msg is put back into the response msg, the return code =rqst.code+1.
     '''
-        version = 3
-        def __init__(self, version):
+
+        def __init__(self, bms_config.VERSION):
             self.version=version
             self.names = NAMES
             self.pins = allPins
