@@ -3,10 +3,11 @@ import asyncio
 from collections import namedtuple
 import json
 import math
-from database_interface import DatabaseInterface as DBI
+from common import bms_config
+from .database_interface import DatabaseInterface as DBI
 #from adc_Interface import ADC_Interface as ADCIF
 # from gui_interface import GUI_Interface as GUIIF
-from svr_task_manager import SvrTaskManager
+from .svr_task_manager import SvrTaskManager
 
 #        BMS schema( id integer primary key, timestamp varchar, type varchar,chan integer,vin real, error real, a2d_mean integer, vm_mean real, vm_sd real, vb real);
 BMS = namedtuple("BMS",("id","timestamp","msgid", "type","chan", "a2d_mean","vm_mean","vm_sd","vb","vin","error","samp_sz", "discard_sz","keep_sz"))
@@ -17,8 +18,6 @@ DB_TO_GUI_MSG=namedtuple("DB_TO_GUI_MSG",("RECEIVER", "SENDER", "ID", "TIMESTAMP
 # ADC_CMDS = [100,174,200 ]
 # DB_CMDS=[300,310, 312, 314, 350, 360, 362,364,370,372,374,372,374]
 # DB_RSPNS= [311, 313,315, 361,363,365,371,373,375]
-app_id=1
-version=3
   
 class Server:
     def __init__(self, app_id, version):
@@ -86,11 +85,11 @@ class Server:
             await writer.wait_closed()
             print("Disconnected:", addr)
 
-async def main(app_id, versiion):
+async def main(app_id, version):
     svr = Server(app_id, version)
     server = await asyncio.start_server( svr.handle_client,
-        '192.168.254.19', 8888 )
-    print("Server is listening on port 8888")
+        bms_config.SVR_IP, bms_config.SVR_PORT)
+    print(f"Server is listening at: {bms_config.SVR_IP} : {bms_config.SVR_PORT}")
 
     async with server:
         await server.serve_forever()
