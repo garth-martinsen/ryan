@@ -1,8 +1,11 @@
-All Schemas in rt_db: as of 6/29/26
- CREATE TABLE "CONFIG" (ID INTEGER PRIMARY KEY , OWNER varchar,APP_ID integer, APP_DESC varchar, CHAN integer, CHAN_DESC VARCHAR , version     INTEGER NOT NULL, VERSION_DESC VARCHAR,  TIMESTAMP VARCHAR, TEMPC REAL,ADC_FSR real, ADC_STEPS integer, ADC_SAMPLE_RATE INTEGER,  C1 real, R1 REAL, R2 REAL,    VD_FRACT real,  LUT_CALIBRATED integer , LUT_TS VARCHAR , K_FACTOR) 
+All Schemas in rt_db: as of 7/18/26
+CREATE TABLE IF NOT EXISTS "BMS" (ID integer primary key,  MSGID  integer,  VERSION  integer,  TIMESTAMP  varchar,  TYPE  varchar,  CHAN  integer,  A2D_MEAN  real,  VM_MEAN  real,  VM_SD  real,  VB  real,      VIN  real,  ERROR  real,  SAMP_SZ  integer,  DISCARD_SZ  integer,  KEEP_SZ  integer);
+CREATE TABLE IF NOT EXISTS "LUTS" (ID INTEGER PRIMARY KEY , APP_ID integer, VERSION integer, CHAN integer,  VM real, VIN real );
+CREATE TABLE A2D (ID integer primary key, BMS_ID integer, SAMPLES varchar);
+CREATE TABLE MSGID (ID integer primary key, DTS integer);
+CREATE TABLE IF NOT EXISTS "APPS" (ID INTEGER PRIMARY KEY , OWNER varchar, APP_DESC varchar,  TIMESTAMP VARCHAR, TEMPC REAL,ADC_FSR real, ADC_STEPS integer, ADC_SAMPLE_RATE INTEGER, VERSION int, VERSION_DESC VARCHAR);
+CREATE TABLE IF NOT EXISTS "CHANNELS" (ID INTEGER PRIMARY KEY , APP_ID INTEGER, CHAN integer, CHAN_DESC VARCHAR , VERSION INTEGER NOT NULL, VERSION_DESC VARCHAR,  TIMESTAMP VARCHAR,  C1 real, R1 REAL, R2 REAL,    SLOPE real,  LUT_CALIBRATED integer , LUT_TS VARCHAR , K_FACTOR, intercept);
 
-
- CREATE TABLE "BMS" (ID integer primary key,  MSGID  integer,  VERSION  integer,  TIMESTAMP  varchar,  TYPE  varchar,  CHAN  integer,  A2D_MEAN  real,  VM_MEAN  real,  VM_SD  real,  VB  real,      VIN  real,  ERROR  real,  SAMP_SZ  integer,  DISCARD_SZ  integer,  KEEP_SZ  integer)                                                                                          
 
 Notes: 
 1. In the Config table, there will be 3 records for each app and version : [chan 0, chan 1, chan2]. Each channel will have its own voltage divider resistors, R1,

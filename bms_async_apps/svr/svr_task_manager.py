@@ -2,9 +2,9 @@
 # returns json-worthy, correct namedtuple. The bms_async_server has requirements: 1. manage client connections,
 # 2. receive json msgs,  restore python objects by json.loads(...), 2. delegate msg_processing to svr_msg_processor ,
 # 3.. send json-appropriate msgs to correct async_client.
-from database_interface import DatabaseInterface
+from .database_interface import DatabaseInterface
 import json
-from database_interface_config import Config, BMS
+from .database_interface_config import APP_CONFIG, BMS
 import math
 
 class SvrTaskManager:
@@ -18,7 +18,7 @@ class SvrTaskManager:
         self.version=version
         self.app_id = app_id
         self.dbi = DatabaseInterface(app_id, version)
-        self.load_vd_fracts()
+        self.get_estimator_parms()
         self.load_luts()
         self.load_config()
         self.load_functions_dict()
@@ -31,11 +31,12 @@ class SvrTaskManager:
         self.functions_dict = functions_dict
        
     def load_config(self):
-        cfg = self.dbi.get_config(0)
-        FSR=cfg[0].ADC_FSR
-        STEPS = cfg[0].ADC_STEPS
+        cfg = self.dbi.get_app_config()
+        app_config = APP_CONFIG(*cfg)
+        FSR=app_config.ADC_FSR
+        STEPS = app_config.ADC_STEPS
         self.lsb = FSR/STEPS
-        self.k = cfg[0].K_FACTOR
+       # self.k = app_config.K_FACTOR      # wrong. k_factor is a channel attribute.
  
     def adc_setup_periodic(self, functions_dict, argslist):
         print("Not yet implemented TBD")
@@ -47,8 +48,8 @@ class SvrTaskManager:
         luts.append(self.dbi.get_lut(2))
         self.luts=luts
         
-    def load_vd_fracts(self):
-        self.vd_fracts = self.dbi.get_vd_fracts()               
+    def get_estimator_parms(self):
+        self.estimator_parms = self.dbi.get_estimator_parms()               
 
     async def send_to_client(self, name, msg, clients):
         #print(f"In send_to_client()...sending msg to {name} client. msg: {msg}")
@@ -143,7 +144,7 @@ class SvrTaskManager:
         chan = msg["CHAN"]
         a2d = msg["A2D"]
         samp_sz = len(a2d)
-        print(f" k_factor, k: {self.k}")
+        #print(f" k_factor, k: {self.k}")
         #==========================
         slots={}
         for x in a2d:
@@ -172,7 +173,7 @@ class SvrTaskManager:
         vm_m= round(m*self.lsb, 4)
         print("hw4")
         vm_sd=round(sd*self.lsb, 8)
-        vb = round(vm_m/self.vd_fracts[chan], 4)
+        vb = round(vm_m*self.slope[chan]+self.intercept[chan], 4)
         print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
         error = round((float(vin) - vb), 6)
         summary_dict  = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version,
