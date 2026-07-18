@@ -43,7 +43,7 @@ class DatabaseInterface:
             funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
             funct_dict[302]= self. sync_time                                       # ( [] )
             funct_dict[310]= self.get_app_config                               # ( )
-            funct_dict[310]= self.get_chan_config                        # ( [chan] )
+            funct_dict[312]= self.get_chan_config                        # ( [chan] )
             funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
             funct_dict[330]= self.list_bms                                           # ([ chan, type])
             funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
