@@ -8,13 +8,14 @@ import sqlite3
 import time
 import datetime
 import json
-from database_interface_config import db_path, Config, Abbrev, BMS, LUT,CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
+from .database_interface_config import db_path, APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
 
 from collections import OrderedDict, namedtuple
 import re
 import math
 from typing import List
 #import asyncio
+
 # ID | APP_ID | VERSION | CHAN |   VM   | VIN  |
 LUT_ITEM = namedtuple("LUT_ITEM", ("ID", "APP_ID", "VERSION", "CHAN", "VM", "VIN", ))
  
@@ -31,6 +32,8 @@ class DatabaseInterface:
         self.luts :List[OrderedDict] =[OrderedDict(),OrderedDict(),OrderedDict()]
         self.lut_timestamps:List[str] = ["","",""]
         self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
+        self.slope=[]
+        self.intercept = []
         self.msg = ""
         self.funct_dict = self.create_function_dict()
         self.funct_desc = funct_desc
@@ -39,7 +42,8 @@ class DatabaseInterface:
             funct_dict  = dict()
             funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
             funct_dict[302]= self. sync_time                                       # ( [] )
-            funct_dict[310]= self.get_config                                        # ( [chan] )
+            funct_dict[310]= self.get_app_config                               # ( )
+            funct_dict[310]= self.get_chan_config                        # ( [chan] )
             funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
             funct_dict[330]= self.list_bms                                           # ([ chan, type])
             funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
@@ -48,7 +52,7 @@ class DatabaseInterface:
             funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
             funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
             funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
-            funct_dict[390]= self.get_vd_fracts                                  #([])
+            funct_dict[390]= self.get_estimator_parms                                  #([])
             return funct_dict
             
     def call_function( self, code, argslist):
@@ -125,50 +129,60 @@ class DatabaseInterface:
         print(" create cols_vals rejected columns: ", rejects)
         return (cols, vals)
 
-    def list_all_choices(self):
-        """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
-        For now it is: _Abbrev_namedtuple_factory"""
-        cu = self.get_cursor()
-        #self.cx.row_factory = self._Abbrev_namedtuple_factory
-        select_str = "SELECT id, owner, app_desc, channel_id, channel_desc, version_desc  FROM CONFIG order by owner and channel_id;"
-        records = []
-        for row in cu.execute(select_str):
-            records.append(row)
-        # print("records: ", records)
-        return records
+#     def list_all_choices(self):
+#         """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
+#         For now it is: _Abbrev_namedtuple_factory"""
+#         cu = self.get_cursor()
+#         #self.cx.row_factory = self._Abbrev_namedtuple_factory
+#         select_str = "SELECT id, owner, app_desc, channel_id, channel_desc, version_desc  FROM CONFIG order by owner and channel_id;"
+#         records = []
+#         for row in cu.execute(select_str):
+#             records.append(row)
+#         # print("records: ", records)
+#         return records
 
     def next_msgid(self):
+        '''Inserts a new msgid and returns the lastrowid which is it.'''
         cu=self.get_cursor()
         cu.execute("INSERT INTO MSGID VALUES(NULL, ?)", (time.time(),) )
         msgid = cu.lastrowid
         return msgid
  
-    def get_config(self, chan):
-        """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row
-        For this select, it is one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory,BMS]...TBD
+    def get_app_config(self):
+        '''For each app, there will be exactly one app_config record'''
+        cu =self.get_cursor()
+        select_str = f"SELECT * FROM Apps where  version = {self.version};"
+        #print("select_str: ", select_str)
+        # Each row is a channel.
+        res = cu.execute(select_str)
+        return res.fetchone()
+    
+    def get_chan_config(self, chan):
+        """tuple_factory is the function that specifies the namedtuple to use in creating objects from *row. Json sends records better than tuples
         """
         cfg = []
-        #self.cx.row_factory = self._Config_namedtuple_factory
         cu =self.get_cursor()
-        select_str = f"SELECT * FROM CONFIG where  app_id = {self.app_id} and chan = {chan} and version = {self.version};"
+        select_str = f"SELECT * FROM CHANNELS where  app_id = {self.app_id}  and version = {self.version} and chan={chan};"
         #print("select_str: ", select_str)
         # Each row is a channel.
         for row in cu.execute(select_str):
             #print("row: ", row)
-            cfg.append(Config(*row))
+            cfg.append(CHAN_CONFIG(*row))
         self.cfgs[chan]=cfg
         return cfg
-       # self.vd_fracts = cfg["vd_fracts"]
-     
-    def get_vd_fracts(self ):
-        od_vd_fracts = OrderedDict()
-        select_str = f" select chan, vd_fract from CONFIG where app_id= {self.app_id} and version = {self.version}"
+     #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
+    def get_estimator_parms(self ):
+        #od_vd_fracts = OrderedDict()
+        est_parms=[]
+        select_str = f" select chan, slope, intercept from CHANNELS where app_id= {self.app_id} and version = {self.version}"
         #print(" select string: ",  select_str)
         cu = self.get_cursor()
         for row in cu.execute(select_str):
             #print("row: ", row)
-            od_vd_fracts[row[0]] =row[1]
-        return od_vd_fracts
+            est_parms.append(row)
+            #od_vd_fracts[row[0]] =row[1]
+      #  return od_vd_fracts
+        return est_parms
 
 
     #TODO 3 : Implement save_config(...) 
@@ -197,7 +211,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu = self.get_cursor()
         cu.execute(bms_insert_str)
         bms_id=cu.lastrowid
-        print(f"bms_id: {bms_id}")
+        #print(f"bms_id: {bms_id}")
         a2d_insert_str = f"insert into A2D values(NULL, {bms_id}, '{a2d}')"
         #print(f"a2d_insert_str: {a2d_insert_str}")
         cu.execute(a2d_insert_str)
@@ -282,7 +296,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         '''Called when any lut is updated. It updates the lut_timestamp in the config table. dbi instance variables: app_id, version'''
         cu = self.get_cursor()
         timestamp = self._timestamp()    # dbi timestamp is NOW.
-        update_str = f"update CONFIG set LUT_TS ='{timestamp}'  where chan={chan} and version = {self.version}";
+        update_str = f"update CHANNELS set LUT_TS ='{timestamp}'  where chan={chan} and version = {self.version}";
         #print(f"update_str: {update_str}")
         cu.execute(update_str)
         self.cx.commit()
