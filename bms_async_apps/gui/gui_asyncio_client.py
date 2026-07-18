@@ -1,14 +1,16 @@
-# file: gui_asyncio_client.py copied and adapted from  chatgpt_client.py
+# file: gui_asyncio_client.py copied and adapted from  chatgpt_client.py.  This is the comms wormhole. It will be adapted so the BMS gui requests  will come from Flet interactions.
+
+# TODO 1: Fix so that common.bms_config can be seen by gui .
+# from .common import bms_config      
 from collections import namedtuple, OrderedDict
 import asyncio
 import json
 import time
 from copy import deepcopy
 
-
-INCOMING_MSG = namedtuple("INCOMING_MSG", ("SENDER", "RECEIVER","TIMESTAMP", "MSGID", "CODE", "TYPE","CHAN","SAMP_SZ","DISCARD_SZ","KEEP_SZ","A2D_MEAN","VM_MEAN","VM_SD","VB","VIN","ERROR"))
-OUTGOING_MSG = namedtuple("OUTGOING_MSG", ("SENDER", "RECEIVER","TIMESTAMP",  "CODE", "ARGLIST"))
-#msg = 'GUI, ADC, 2026-5-20  17:40:27,  {code} , {atype} , {chan},  {vin} '  
+# following are not used yet
+# INCOMING_MSG = namedtuple("INCOMING_MSG", ("SENDER", "RECEIVER","TIMESTAMP", "MSGID", "CODE", "TYPE","CHAN","SAMP_SZ","DISCARD_SZ","KEEP_SZ","A2D_MEAN","VM_MEAN","VM_SD","VB","VIN","ERROR"))
+# OUTGOING_MSG = namedtuple("OUTGOING_MSG", ("SENDER", "RECEIVER","TIMESTAMP",  "CODE", "ARGLIST"))
 
 #global vars
 funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time()',
@@ -16,20 +18,20 @@ funct_desc = OrderedDict({300: 'save_config(  msg : Config )', 302 : 'sync_time(
                         330: 'list_bms( chan:int, atype:str) ', 340: 'get_bms_a2d_samples( bms_id : int)',
                         350: 'get_lut( chan:int)', 352: 'get_lut_item(chan:int, vin:float)',
                         360: 'get_lut_timestamp( chan:int )', 370: 'update_lut_pair(  _id:int,   vm:float,   vin:float)',
-                        380: 'update_lut_timestamp( chan:int )', 390: 'get_vd_fracts( )'})
+                        380: 'update_lut_timestamp( chan:int )', 390: 'get_estimator_parms( )'})
 
-# Flet will replace this Template dict and just make cmds as the User dictates... Timestamp will be set upon msg prep.
+# Flet will replace this Template dict and just make cmds as the User dictates... Timestamp will be set right before msg is sent.
 gui_cmd_templates = OrderedDict({
                          1: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 302, 'ARGLIST': [] },
                         2: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 100, 'ARGLIST': [], 'TYPE': 'm', 'VIN': 0.0},
                         3: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 200, 'ARGLIST': [[4.054,8.0,12.08] ] },
+                            'CODE': 200, 'ARGLIST': [[4.049,7.94,12.01] ] },
                         4: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 174, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}, # 1 minute periods (60 seconds)
                         5: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5, "VINS": [4.046,803,12.11]}})
+                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5, "VINS": [4.049,7.94,12.01]}})
 # periodic example: for 3 days at 1/2 hour periods: period=1800 sec  reps=144
 # periodic example:for 3 days at 1 hour period: period=3600 sec, reps =72 
 
@@ -61,9 +63,9 @@ async def receiver(reader):
         data = json.loads(line.decode())
         print("\tServer says:", data)
     
-# TODO: The sender must be asyncio , python input statement blocks,  so they cannot be used.
+# TODO: python input statements block, so they cannot be used. The msg must be sent via asyncio ,   .
 # Flet will have to get the inputs without blocking...
-# To emulate FLET, the following iterates thru all  gui_cmd_templates in gui_cmd_timplates dict. .
+# To emulate FLET, the following iterates thru all  gui_cmd_templates in gui_cmd_templates dict. .
 async def sender(writer):
     for template in gui_cmd_templates.values():
         msg = deepcopy(template)
@@ -92,7 +94,7 @@ async def get_event_loop():
      return loop
 
 async def tcp_client():
-    reader, writer = await asyncio.open_connection( '192.168.254.19', 8888 )
+    reader, writer = await asyncio.open_connection( bms_config.SVR_IP, bms_config.SVR_PORT )
 
     # Register with the server first
     hello = { "SENDER":"GUI", "CODE":0 }
