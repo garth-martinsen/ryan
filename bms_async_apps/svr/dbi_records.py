@@ -1,12 +1,15 @@
 # file: dbi_records.py   used to past records used in development so they can be loaded into rt_db
 
-from  database_interface_config import Config, BMS, Stats
+from  database_interface_config import APP_CONFIG, CHAN_CONFIG, BMS, Stats
 #config records
 
-configs=[[],[],[]]
-configs[0] = Config(1, 'GM', 1, 'Development', 0,  'One Cell 3.0-4.5V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 99300, 219100,   0.688128140703518, 0, '2026-2-24 17:00', 3.0)
-configs[1] = Config(2, 'GM', 1, 'Development', 1,  'Two Cells 6.0-9.0V ',      3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64,  1e-07, 217700, 99300,  0.313249211356467, 0, '2026-2-24 17:07', 3.0)
-configs[2] = Config(3, 'GM', 1, 'Development', 2,  'Three Cells 9.0-13.5V',   3, 'PCB2', '2026-06-02 17:07', 25.4, 4.096, 32768, 64, 1e-07, 301100, 994000, 0.248189762796504, 0, '2026-2-24 17:07', 3.0)
+chan_configs=[[],[],[]]
+# APP_CONFIG_FIELDS( 'ID', 'OWNER', 'APP_DESC', 'TIMESTAMP',  'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'VERSION', 'VERSION_DESC')
+app_config = APP_CONFIG(1, 'GM', 'Development', 1784096813.4462662, 25.4, 4.096, 32768, 64, 3, 'PCB2')
+# CHAN_CONFIG_FIELDS = ( 'ID', 'APP_ID', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC',  'TIMESTAMP',  'C1' ,'R1' , 'R2' ,  'SLOPE'  , 'LUT_CALIBRATED',  'LUT_TS'  , 'K_FACTOR' ,'INTERCEPT')
+chan_configs[0] = CHAN_CONFIG(1,  1, 0,  'One Cell 3.0-4.5V',      3, 'PCB2',   1784096813.44626, 1e-07, 101100,  303700, 1.3328943035890672, 0, 1782687301.5675 ,3.0,  0.02233 )
+chan_configs[1] = CHAN_CONFIG(2, 1 , 1, 'Two Cells 6.0-9.0V',     3 , 'PCB2' , 1782687301.57536, 1e-07,  222200, 111800, 2.9874776386404265, 0, 1782687301.5753, 3.0,  0.04379 )
+chan_configs[2] = CHAN_CONFIG(3, 1, 2,  'Three Cells 9.0-13.5V', 3, 'PCB2',  1782687301.57536, 1e-07,  301100, 99400,    4.029175050301816, 0, 1782687301.5753, 3.0,   0.06689 )
 
 # bms records
 # 6/2/26 CREATE TABLE IF NOT EXISTS "BMS" ( id integer primary key, timestamp varchar, type varchar,chan integer,vin real, error real, a2d_mean integer, vm_mean real, vm_sd real, vb real, samples varchar, discard_sz, keep_sz, samp_sz);
@@ -29,6 +32,6 @@ lut_answers = [lut_answers0, lut_answers1, lut_answers2]
 #6/6/26: BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN",  "VIN",  "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
 # Fiends missing until computed: "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "ERROR"
 bms=[[],[],[],[],[],[]]
-bms[0] = BMS(1, 5010, 3, '2026-3-21 20:34:25', 'c',   0,  22654, 2.83175, 0.000316, 4.113, 4.114, -0.001, 64, 2, 62 )
-bms[1] = BMS(2, 5010, 3, '2026-3-14 19:43:55', 'c',   1,  21036 , 2.629, 0.000239, 7.856, 7.9,  0.0444505, 64,2,62 )
-bms[2] = BMS(3, 5010, 3, '2026-3-14 19:43:55', 'c',   2,  21036, 2.629, 0.000239, 10.498, 10.5,  -0.002,     64, 2, 62)
+bms[0] = BMS(1, 5010, 3, '2026-3-21 20:34:25', 'c', 0,  22654, 2.83175, 0.000316, 4.113, 4.114, -0.001, 64, 2, 62 )
+bms[1] = BMS(2, 5010, 3, '2026-3-14 19:43:55', 'c', 1,  21036 , 2.629, 0.000239, 7.856, 7.9,  0.0444505, 64,2,62 )
+bms[2] = BMS(3, 5010, 3, '2026-3-14 19:43:55', 'c', 2,  21036, 2.629, 0.000239, 10.498, 10.5,  -0.002,     64, 2, 62)
