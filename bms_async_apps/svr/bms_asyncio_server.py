@@ -4,6 +4,7 @@ from collections import namedtuple
 import json
 import math
 from common import bms_config
+import common.secrets
 from .database_interface import DatabaseInterface as DBI
 #from adc_Interface import ADC_Interface as ADCIF
 # from gui_interface import GUI_Interface as GUIIF
@@ -23,7 +24,7 @@ class Server:
     def __init__(self, app_id, version):
         self.app_id = app_id
         self.version = version
-        self.svr_task_manager= SvrTaskManager(app_id, version)
+        self.svr_task_manager= SvrTaskManager(bms_config.APP_ID, bms_config.VERSION)
         self.clients={}
         print(f" self.__dict__ : {self.__dict__}")
         
