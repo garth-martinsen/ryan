@@ -1,6 +1,6 @@
 # file: dbi_records.py   used to past records used in development so they can be loaded into rt_db
 
-from  database_interface_config import APP_CONFIG, CHAN_CONFIG, BMS, Stats
+from  .database_interface_config import APP_CONFIG, CHAN_CONFIG, BMS, Stats
 #config records
 
 chan_configs=[[],[],[]]
