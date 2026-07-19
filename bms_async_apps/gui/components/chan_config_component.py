@@ -68,21 +68,21 @@ def Chan_Config_View(config: Chan_Config, set_config):
         content=ft.Column(
             controls=[
                 ft.Row(controls=[
-                ft.Text(f"id_: {config.id_}",   width=200), ft.Text(f"app_id: {config.app_id}",  width=200),]),
+                ft.Text(f"id_: {config.id_}",   width=200), ft.Text(f"app_id: {edits.app_id}",  width=200),]),
                  ft.Row(controls=[
-                ft.Text(f"version: {config.version}", width=200), ft.Text(f"version_description: {config.version_desc}", width=200)]),               
+                ft.Text(f"version: {edits.version}", width=200), ft.Text(f"version_description: {edits.version_desc}", width=200)]),               
                 ft.Row(controls=[
-                ft.Text(f"Channel: {config.chan}", width=200), ft.Text(f"Channel_description: {config.chan_desc}", width=200)]),
+                ft.Text(f"Channel: {edits.chan}", width=200), ft.Text(f"Channel_description: {edits.chan_desc}", width=200)]),
                 ft.Row(controls=[
-                ft.Text(f"timestamp: {human_timestamp(config.timestamp)}", width=200), ft.Text(f"Capacitor: {config.capacitor}", width=200)]) ,
+                ft.Text(f"timestamp: {human_timestamp(edits.timestamp)}", width=200), ft.Text(f"Capacitor: {edits.capacitor}", width=200)]) ,
                 ft.Row(controls=[
-                ft.Text(f"R1: {config.R1}", width=200) , ft.Text(f"R2: {config.R2}", width=200)]) ,
+                ft.Text(f"R1: {edits.R1}", width=200) , ft.Text(f"R2: {edits.R2}", width=200)]) ,
                 ft.Row(controls=[
-                ft.Text(f"Vd_fract: {config.vd_fract}", width=200) , ft.Text(f"K_Factor: {config.k_factor}", width=200)]) ,
+                ft.Text(f"Vd_fract: {edits.vd_fract}", width=200) , ft.Text(f"K_Factor: {edits.k_factor}", width=200)]) ,
                 ft.Row(controls=[
-                ft.Text(f"lut_version: {config.lut_version}", width=200) , ft.Text(f"lut_calibrated: {config.lut_calibrated}", width=200) ]),
+                ft.Text(f"lut_version: {edits.lut_version}", width=200) , ft.Text(f"lut_calibrated: {edits.lut_calibrated}", width=200) ]),
                 ft.Row(controls = [
-                ft.Text(f"lut_timestamp: {human_timestamp(config.lut_timestamp)}", width=200) ,  ft.Button("Edit Channel", on_click=edit_channel),])
+                ft.Text(f"lut_timestamp: {human_timestamp(edits.lut_timestamp)}", width=200) ,  ft.Button("Edit Channel", on_click=edit_channel),])
             ]
             )
         )
