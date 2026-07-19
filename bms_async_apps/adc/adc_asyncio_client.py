@@ -7,9 +7,12 @@ import json
 from machine import RTC
 
 # print("Imported from bms_config the following:")
+# print("APP_ID: ", bms_config.APP_ID)
+# print("VERSION: ", bms_config.VERSION)
 # print("SVR_IP:", bms_config.SVR_IP)
 # print("SVR_PORT: ", bms_config.SVR_PORT)
-# print("VERSION: ", bms_config.VERSION)
+# print("VINS: ", bms_config.VINS)
+
 
 #global variables...
 adc =  ADC(bms_config.VERSION)
@@ -84,8 +87,8 @@ async def route_msg( msg, writer):
                 writer.write((json.dumps(response) +"\n").encode())
                 await writer.drain()
                 await asyncio.sleep(period)
-                reps_done  += 1
-                print(f"\tFor cmd: 274  the reps_done: {reps_done} of requested reps: {reps}")
+            reps_done  += 1
+            print(f"\tFor cmd: 274  the reps_done: {reps_done} of requested reps: {reps}")
         print(f"\tAll {reps} repetitions were completed in start_periodic_calibrations (274) cmd")
 
 #TODO 3: Finish/DEBUG block  303 for rtc time setting;
@@ -100,7 +103,8 @@ async def route_msg( msg, writer):
         await writer.drain()
         
         
-async def tcp_client():   
+async def tcp_client():
+    print(f"Starting tcp_client with svr_ip: {bms_config.SVR_IP} , svr_port: {bms_config.SVR_PORT} ")
     reader, writer = await asyncio.open_connection( bms_config.SVR_IP, bms_config.SVR_PORT)
     # send a hello msg to introduce me to the server
     hello = { "SENDER":"ADC", "CODE":0 }
@@ -115,10 +119,9 @@ async def tcp_client():
     while True:
         print("ADC waiting for server message")
         line = await reader.readline()   # blocks until reads a "\n"
-        print("ADC raw line:", repr(line))
+#         print("ADC raw line:", repr(line))
         msg=json.loads(line.decode())
         print("\tADC decoded msg:", msg)
-        #TODO 1: DONE : from adc import ADC;   wire it up so I can: 1. call adc.measure(c) where c=chan [0,1,2]; 2. call adc.start_periodic(period, reps).
         #print(f"writer: {writer}  msg: {msg}")
         if not isinstance(msg, dict):
             print("Ignoring non-command message:", msg)
@@ -133,12 +136,9 @@ async def tcp_client():
 
 asyncio.run(tcp_client())
         
-      
-
-
-
-
-    #TODO : Rule to send out msg :  1. msgj=json.dumps(msg) + "\n" -> 2. writer.write(msgj.encode()) -> 3. await writer.drain()
+    
+®
+    #TODO : Rule to send out msg :  1. msgj=json.dumps(msg) + "\n" -> 2. writer.write(msgj.encode()) -> 3. await writerrain()
     #     packet = json.dumps(msg) + "\n"
     #     writer.write(packet.encode())
     #     await writer.drain()
