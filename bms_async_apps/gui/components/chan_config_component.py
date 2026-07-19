@@ -55,10 +55,8 @@ def Chan_Config_View(config: Chan_Config, set_config):
         print(f"edits : {edits}, config: {config}")
         print(f"edits.__dict__ : {edits.__dict__}")
         # update config from edits
-        for k,v in edits.__dict__.items():
-            setattr(config, k, v)
         print("config id:", id(config))
-        set_config(config)
+        set_config(edits)
         print(f"after updating config from edits:  {config}")
         close_dialog(e)
            
