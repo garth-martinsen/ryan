@@ -2,6 +2,8 @@
 # returns json-worthy, correct namedtuple. The bms_async_server has requirements: 1. manage client connections,
 # 2. receive json msgs,  restore python objects by json.loads(...), 2. delegate msg_processing to svr_msg_processor ,
 # 3.. send json-appropriate msgs to correct async_client.
+
+from common import bms_config
 from .database_interface import DatabaseInterface
 import json
 from .database_interface_config import APP_CONFIG, BMS
@@ -13,31 +15,40 @@ class SvrTaskManager:
        database_interface (dbi), which is initialized with the app_id and version. Assumption: I can
        pass in args: event_loop, clients dict, msg, use them to create tasks on the event_loop, which
        will schedule and run the tasks.'''
-
     def __init__(self, app_id, version):      # removed , svr from argslist
         self.version=version
         self.app_id = app_id
         self.dbi = DatabaseInterface(app_id, version)
+        self.chan_config=[[],[],[]]
         self.get_estimator_parms()
         self.load_luts()
-        self.load_config()
+        #TODO: load slope and intercepts from CHANNELS table via dbi
+        '''│ 1.33289430358907 │ 0.024164327787965  │
+           │ 2.98747763864043 │ 0.0498818752307106 │
+           │ 3.99304865938431 │ 0.0641294273419395 │ '''
+        self.slope=[1.33289430358907, 2.98747763864043,3.99304865938431]
+        self.intercepts=[0.024164327787965,0.0498818752307106,0.0641294273419395]
+        self.get_app_config()
+        for chan in range(3):
+            self.get_chan_config(chan)
         self.load_functions_dict()
-        
         
     def load_functions_dict(self):
         functions_dict  = dict()
-       # functions_dict[101]= self.compute_store_send                 # ([msg, receiver, ])
-        #functions_dict[201]= self.compute_store_send                 # ([msg, receiver, ])
         self.functions_dict = functions_dict
        
-    def load_config(self):
+    def get_app_config(self):
         cfg = self.dbi.get_app_config()
         app_config = APP_CONFIG(*cfg)
         FSR=app_config.ADC_FSR
         STEPS = app_config.ADC_STEPS
         self.lsb = FSR/STEPS
-       # self.k = app_config.K_FACTOR      # wrong. k_factor is a channel attribute.
- 
+
+    def get_chan_config(self, chan):
+        cfg= self.dbi.get_chan_config(chan) 
+        self.chan_config[chan] = cfg;
+ #TODO: finish chan_config and TEST it.
+
     def adc_setup_periodic(self, functions_dict, argslist):
         print("Not yet implemented TBD")
      
@@ -79,7 +90,7 @@ class SvrTaskManager:
         try:
             print(f"msg: {msg}")
             code = int(msg["CODE"])
-            print("reached : hw 1")       
+            print("reached : hw1")       
             # for codes: 100,174,200 ,msg,with embedded msigid is forwarded to the ADC_client .
             if code in [100,174,200, 274]:
                 await self.send_to_client("ADC", msg, clients)
@@ -139,8 +150,8 @@ class SvrTaskManager:
            database_interface_config.py. Currently, Fields are:  BMS_FIELDS =
            ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN",
            "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ") '''
-  
-        print(f"entered svr_task_manager.compute_stats(msg)  with: the A2D samples ,LSB: {self.lsb}, k: {self.k} , vd_fract: {self.vd_fracts}")
+ #TODO get k_factor to allow self.k to hold a value. It was breaking compute_stats. removed it for now 
+        #print(f"entered svr_task_manager.compute_stats(msg)  with: the A2D samples ,LSB: {self.lsb},slope: {self.slope}, intercept: {self.intercepts}")
         chan = msg["CHAN"]
         a2d = msg["A2D"]
         samp_sz = len(a2d)
@@ -152,6 +163,7 @@ class SvrTaskManager:
             abin.append(x)
             slots[x]=abin
         # initialize low
+        print("svr_task_mgr.compute_stats: hw2")
         winning_score=1
         winner = 1
         for k,v in slots.items():
@@ -173,7 +185,8 @@ class SvrTaskManager:
         vm_m= round(m*self.lsb, 4)
         print("hw4")
         vm_sd=round(sd*self.lsb, 8)
-        vb = round(vm_m*self.slope[chan]+self.intercept[chan], 4)
+        print(f" slope: {self.slope[chan]} , intercept: {self.intercepts[chan]}")
+        vb = round(vm_m*self.slope[chan]+self.intercepts[chan], 4)
         print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
         error = round((float(vin) - vb), 6)
         summary_dict  = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version,
@@ -183,37 +196,6 @@ class SvrTaskManager:
                                       "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
         print(f"summary_dict:  {summary_dict}")
         return summary_dict
-
-         
-#===========================
-        
-#         vin = msg["VIN"]
-#         m=self.mean(samples)
-#         vrs = 
-#         sd = math.sqrt(self.mean(vrs))
-#         #discard outliers... may need to adjust k . To start, pass in k=3
-#         keep = [x for x in samples if abs(x-m) < (sd*self.k)]
-#         
-#         #final pass: do stats on keep instead of all samples
-#         keep_sz=len(keep)
-#         discard_sz = samp_sz - keep_sz
-#         print(f"samp_sz: {samp_sz}  keep_sz: {keep_sz}  discard: {len(samples)- keep_sz}")
-#         print("hw4")
-#         m = round(self.mean(keep), 4)
-#         vrs =  [(x-m)*(x-m) for x in keep]
-#         sd = math.sqrt(self.mean(vrs))
-#         vm= round(m*self.lsb, 4)
-#         print("hw5")
-#         vm_sd=round(sd*self.lsb, 8)
-#         vb = round(vm/self.vd_fracts[chan], 4)
-#         print(f"hw6  vb: {vb} vin: {vin} type(vin): {type(vin)}")
-#         error = round((float(vin) - vb), 6)
-#         print("hw7")
-#      
-#         store_to_bms_dict = {"ID":"", "MSGID":msg["MSGID"], "VERSION": self.version, "TIMESTAMP": msg["TIMESTAMP"], "TYPE" : msg["TYPE"],
-#                        "CHAN": chan, "A2D_MEAN": m, "VM_MEAN": vm, "VM_SD": vm_sd, "VB": vb, "VIN": vin, "ERROR" : error, "SAMP_SZ":samp_sz, "DISCARD_SZ": discard_sz, "KEEP_SZ" : keep_sz}
-#         print(f"store_to_bms_dict:  {store_to_bms_dict}")
-#         return store_to_bms_dict
 
     def lookup_chan_vm(self,  chan:int, vm:float):
         '''Given any legitimate value for vm (measured voltage) in a channel, chan,
