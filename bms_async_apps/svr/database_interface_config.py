@@ -23,10 +23,6 @@ Lut_Limits = namedtuple( "Lut_Limits", ("circuit_name", "lower_limit", "upper_li
 
 Stats=namedtuple("Stats",("a2d","vm","vm_sd","vb"))
 
-#db_path = '/Users/garth/DEV/ryan/clientserver/data/rt_db'
-#db_path = '/Users/garth/DEV/ryan/simplewebsocket/data/rt_db'
-#db_path =   '/Users/garth/MERGE/ryan/sqliteDB/rt_db'
-db_path =   '/Users/garth/DEV/ryan/sqliteDB/rt_db'
 
 #=== responses ======
 #TODO: design handling of the following responses in svr_task_mgr info only
@@ -38,8 +34,3 @@ funct_desc = {300: 'save_config(  msg : Config )',       302: 'sync_time()',
                        350: 'get_lut( chan:int)',                          352: 'get_lut_item(chan:int, vin:float)',
                        360: 'get_lut_timestamp( chan:int )',      370:'update_lut_pair(  _id:int,   vm:float,   vin:float)' ,
                        380: 'update_lut_timestamp( chan:int )', 390: 'get_estimator_parms( )'  }
-
-
-
-# join example: select cfg.id, cfg.owner, cfg.app_desc, cfg.channel_desc, cfg.version_desc, bms.timestamp, bms.a2d, bms.a2d_sd, bms.vm, bms.vb, bms.keep, bms.sample_period, bms.store_time, bms.gate_time  from CONFIG as cfg INNER JOIN  BMS as bms on cfg.id=bms.id;
-# BMS join A2D example: select * from BMS bms join A2D a2d on bms.id= a2d.bms_id;   note: first two fields of A2D should be ignored: (id and bms_id)
