@@ -5,10 +5,11 @@ used to convert the row values to a namedtuple: one of: [_Abbrev_namedtuple_fact
 Later it was determined to send raw tuples across the websocket and to apply the namedtuples in the client requesting the data
 """
 import sqlite3
+from common import secrets
 import time
 import datetime
 import json
-from .database_interface_config import db_path, APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
+from .database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
 
 from collections import OrderedDict, namedtuple
 import re
@@ -16,22 +17,25 @@ import math
 from typing import List
 #import asyncio
 
+print(f" from secrets: db_path: {secrets.db_path}")
+
 # ID | APP_ID | VERSION | CHAN |   VM   | VIN  |
 LUT_ITEM = namedtuple("LUT_ITEM", ("ID", "APP_ID", "VERSION", "CHAN", "VM", "VIN", ))
  
 class DatabaseInterface:
 
     def __init__(self,app_id, version):
-        self.db_path = db_path
+        self.db_path = secrets.db_path
         self.app_id =app_id
         self.version=version
         print(f"dbpath: {self.db_path} ")
         print(f"app_id: {self.app_id} ")
         print(f"version: {self.version}")
-        self.cfgs: List[Config(),Config(), Config()]= [[],[],[]]
+        self.app_cfg: APP_CONFIG()
+        self.chan_cfgs: List[CHAN_CONFIG(),CHAN_CONFIG(), CHAN_CONFIG()]= [[],[],[]]
         self.luts :List[OrderedDict] =[OrderedDict(),OrderedDict(),OrderedDict()]
         self.lut_timestamps:List[str] = ["","",""]
-        self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
+        #self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
         self.slope=[]
         self.intercept = []
         self.msg = ""
@@ -43,7 +47,7 @@ class DatabaseInterface:
             funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
             funct_dict[302]= self. sync_time                                       # ( [] )
             funct_dict[310]= self.get_app_config                               # ( )
-            funct_dict[312]= self.get_chan_config                        # ( [chan] )
+            funct_dict[312]= self.get_chan_config                              # ( [chan] )
             funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
             funct_dict[330]= self.list_bms                                           # ([ chan, type])
             funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
@@ -52,7 +56,7 @@ class DatabaseInterface:
             funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
             funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
             funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
-            funct_dict[390]= self.get_estimator_parms                                  #([])
+            funct_dict[390]= self.get_estimator_parms                      #([])
             return funct_dict
             
     def call_function( self, code, argslist):
@@ -168,7 +172,7 @@ class DatabaseInterface:
         for row in cu.execute(select_str):
             #print("row: ", row)
             cfg.append(CHAN_CONFIG(*row))
-        self.cfgs[chan]=cfg
+        self.chan_cfgs[chan]=cfg
         return cfg
      #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
     def get_estimator_parms(self ):
