@@ -1,7 +1,7 @@
 # file: gui_asyncio_client.py copied and adapted from  chatgpt_client.py.  This is the comms wormhole. It will be adapted so the BMS gui requests  will come from Flet interactions.
 
 # TODO 1: Fix so that common.bms_config can be seen by gui .
-# from .common import bms_config      
+from common import bms_config      
 from collections import namedtuple, OrderedDict
 import asyncio
 import json
@@ -29,9 +29,9 @@ gui_cmd_templates = OrderedDict({
                         3: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
                             'CODE': 200, 'ARGLIST': [[4.049,7.94,12.01] ] },
                         4: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 174, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5}, # 1 minute periods (60 seconds)
+                            'CODE': 174, 'ARGLIST': [], 'PERIOD': 10, 'REPS': 5}, # 1 minute periods (60 seconds)
                         5: {'RECEIVER': 'ADC', 'SENDER': 'GUI', 'TIMESTAMP': 0.0,
-                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 60, 'REPS': 5, "VINS": [4.049,7.94,12.01]}})
+                            'CODE': 274, 'ARGLIST': [], 'PERIOD': 10, 'REPS': 5, "VINS": [4.047,7.92,11.99]}})
 # periodic example: for 3 days at 1/2 hour periods: period=1800 sec  reps=144
 # periodic example:for 3 days at 1 hour period: period=3600 sec, reps =72 
 
