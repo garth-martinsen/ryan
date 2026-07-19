@@ -35,9 +35,15 @@ class DatabaseInterface:
         self.chan_cfgs: List[CHAN_CONFIG(),CHAN_CONFIG(), CHAN_CONFIG()]= [[],[],[]]
         self.luts :List[OrderedDict] =[OrderedDict(),OrderedDict(),OrderedDict()]
         self.lut_timestamps:List[str] = ["","",""]
-        #self.vd_fracts = {0: 0.688128140703518, 1:0.313249211356467, 2: 0.248189762796504}   #later, these should be set from Config record.
-        self.slope=[]
-        self.intercept = []
+        '''│      SLOPE       │     intercept      │
+           ├──────────────────┼────────────────────┤
+           │ 1.33289430358907 │ 0.024164327787965  │
+           │ 2.98747763864043 │ 0.0498818752307106 │
+           │ 3.99304865938431 │ 0.0641294273419395 │
+           The slope and intercepts should be loaded from dbi... This is a temporary cluge.
+        '''
+        self.slope=[1.33289430358907,2.98747763864043,3.99304865938431 ]
+        self.intercepts= [0.024164327787965,0.0498818752307106,0.0641294273419395 ]
         self.msg = ""
         self.funct_dict = self.create_function_dict()
         self.funct_desc = funct_desc
@@ -176,7 +182,6 @@ class DatabaseInterface:
         return cfg
      #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
     def get_estimator_parms(self ):
-        #od_vd_fracts = OrderedDict()
         est_parms=[]
         select_str = f" select chan, slope, intercept from CHANNELS where app_id= {self.app_id} and version = {self.version}"
         #print(" select string: ",  select_str)
@@ -184,8 +189,6 @@ class DatabaseInterface:
         for row in cu.execute(select_str):
             #print("row: ", row)
             est_parms.append(row)
-            #od_vd_fracts[row[0]] =row[1]
-      #  return od_vd_fracts
         return est_parms
 
 
@@ -356,7 +359,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         maxkey = keys[-1]
         #print(f"\t bounds for chan {chan}: {minkey}, {maxkey}")
         vinstep = 0.1            # all luts have vin in 0.1V steps.
-        tol = vinstep/2*self.vd_fracts[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
+        tol = vinstep/2*self.slope[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
         #allowable vm values to set vm = minkey or maxkey depending...
         lo_tol = minkey - tol
         hi_tol = maxkey + tol
