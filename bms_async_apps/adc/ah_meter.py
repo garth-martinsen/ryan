@@ -30,33 +30,5 @@ class AhMeter:
         return  ah_used
 
 #===================
-'''
-#  test_ah_meter.py:
-    def creates_empty():
-    ah_meter = AhMeter()
-    assert ah_meter.amp_sum == 0.0 , f"A bare metal creation of AhMeter should have amp_sum = {0.0}"
-    assert ah_meter.start_time == 0.0 , f"A bare metal creation of AhMeter should have start_time  = {0.0}"
-    assert ah_meter.vtap == 0.0 , f"A bare metal creation of AhMeter should have vtap = {0.0}"
-    assert ah_meter.count == 0.0 , f"A bare metal creation of AhMeter should have count = {0.0}"
-    
-    def test_start():
-    ah_meter = AhMeter()
-    start_time = time.time()
-    vtap = 12.6
-    ah_meter.start(vtap,start_time)
-    assert ah_meter.amp_sum == 0.0, f"No measurements accumulated so expect {0.0}"
-    assert ah_meter.count == 0, f"No measurements accumulated so expect count={0}"
-    assert ah_meter.start_time == start_time, f"Started so start_time should be: {start_time}"
-    assert ah_meter.vtap == vtap, f"Started so vtap should be: {vtap}"
+# tests found in tests/test_ah_meter.py
 
-    def test_ah_used():
-        ah_meter = AhMeter()
-        amp_sum = 13.2
-        start_time = 1785601949.0
-        end_time = 1785605549.0
-        vtap=12.6
-        ah_meter.start(12.6, start_time)
-        ah_used = ah_meter.ah_used(end_time)
-        assert ah_used == 13.2, f"For given parms, ah_used should equal {13.2}"
-
-'''
