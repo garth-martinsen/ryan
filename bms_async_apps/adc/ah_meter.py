@@ -8,12 +8,12 @@ class AhMeter:
 
     def __init__(self):
         self.start_time=0.0    # start_time passed in on start(),  end_time is passed in when adc_client asks for ah_used.
-	self.amp_sum = 0.0     # accumulates periodic measurements until ah_used(..) is called.
+        self.amp_sum = 0.0     # accumulates periodic measurements until ah_used(..) is called.
         self.vtap = 0.0        # indicates voltage at which ah_used is needed.
         self.count=0           #if measure every minute, should get ~ 60 current measurements in the hour wait for next Voltage measurement.
     
     def start(self, vtap:float, start_time:float):
-        self.start_time = time.time()
+        self.start_time =start_time 
         self.amp_sum = 0.0
         self.count = 0
         self.vtap = vtap
@@ -23,9 +23,11 @@ class AhMeter:
         self.count += 1
 
     def ah_used(self, end_time ):
-        delta_time= end_time - self.start_time
+        delta_time_hr= (end_time - self.start_time)/3600   #in hours should be ~1.0
         avg_amps = self.amp_sum / self.count
-        return delta_time *  avg_amps
+        ah_used = delta_time_hr *  avg_amps
+        print(f"delta_time_hr : {delta_time_hr} avg_amps = {avg_amps}  ah_used : {ah_used}")
+        return  ah_used
 
 #===================
 '''
@@ -41,10 +43,11 @@ class AhMeter:
     ah_meter = AhMeter()
     start_time = time.time()
     vtap = 12.6
-    ah_meter.start(start_time, vtap)
-    assert ah_meter.amp_sum = 0.0, f""
-    assert ah_meter.count = 0, f""
-    assert ah_meter.start_time = start_time, f""
+    ah_meter.start(vtap,start_time)
+    assert ah_meter.amp_sum == 0.0, f"No measurements accumulated so expect {0.0}"
+    assert ah_meter.count == 0, f"No measurements accumulated so expect count={0}"
+    assert ah_meter.start_time == start_time, f"Started so start_time should be: {start_time}"
+    assert ah_meter.vtap == vtap, f"Started so vtap should be: {vtap}"
 
     def test_ah_used():
         ah_meter = AhMeter()
