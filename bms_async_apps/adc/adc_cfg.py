@@ -9,10 +9,10 @@ import ads1x15
 #constants
 ssid = 'Ziply1824'
 password = "1408945739"
-NAMES = ["C42", "C84", "C126"]
+NAMES = ["C42", "C84", "C126", "AMPS"]
 ADC_ADDRESS =micropython.const(72)
 ADC_SAMPLE_RATE = micropython.const(3)               #64sps
-ADC_GAIN = micropython.const(1)                            #all channels => FSR4.096 
+ADC_GAIN = {0:1,1:1,2:1, 3:3}                        #FSR: voltage channels: 4.096V  current channel: 1.024V
 C42=micropython.const(0)
 C84=micropython.const(1)
 C126=micropython.const(2)
@@ -37,13 +37,16 @@ _BUFFERSIZE = micropython.const(64)
 a2d42 = array("h", (0 for _ in range(_BUFFERSIZE)))
 a2d84 = array("h", (0 for _ in range(_BUFFERSIZE)))
 a2d126 = array("h", (0 for _ in range(_BUFFERSIZE)))
+a2d_amps = array("h", (0 for _ in range(_BUFFERSIZE)))
 uclicks42 = array("L", (0 for _ in range(_BUFFERSIZE)))
 uclicks84 = array("L", (0 for _ in range(_BUFFERSIZE)))
 uclicks126 = array("L", (0 for _ in range(_BUFFERSIZE)))
+uclicks_amps = array("L", (0 for _ in range(_BUFFERSIZE)))
 meas42= Measurements(NAMES[0], a2d42, uclicks42)
 meas84= Measurements(NAMES[1], a2d84, uclicks84)
 meas126 = Measurements(NAMES[2], a2d126, uclicks126)
-measurements= [meas42, meas84, meas126]
+measamps = Measurements(NAMES[3], a2d_amps, uclicks_amps)
+measurements= [meas42, meas84, meas126, measamps]
 
 #i2c and ads
 i2c= SoftI2C(scl=Pin(5), sda=Pin(4), freq=400000)
