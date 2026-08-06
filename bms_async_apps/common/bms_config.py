@@ -4,10 +4,11 @@ import os
 
 print("bms_config os.getcwd() is : ", os.getcwd())
 
-SVR_IP =  '192.168.88.3' 
+SVR_IP =  '192.168.88.9' 
 SVR_PORT =8888
 
 APP_ID = 1
+
 VERSION = 3
 
 VINS= [4.094, 7.97, 12.01]
