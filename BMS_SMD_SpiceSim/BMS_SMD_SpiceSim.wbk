@@ -1,0 +1,19 @@
+{
+  "custom_cursors": 2,
+  "last_sch_text_sim_command": "",
+  "tabs": [
+    {
+      "analysis": "OP",
+      "commands": [
+        ".op",
+        ".save all",
+        ".probe alli",
+        ".probe allp"
+      ]
+    }
+  ],
+  "user_defined_signals": [
+    "12.0"
+  ],
+  "version": 7
+}
