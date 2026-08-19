@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 #gjm stuff
 **/.DS_Store
 **/*.swp
@@ -215,3 +216,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+=======
+**/secrets.py
+**/data/*
+**/sqliteDB/*.txt
+**/.DS_Store
+**/.history
+**/*.swp
+**/__pycache__/*
+
