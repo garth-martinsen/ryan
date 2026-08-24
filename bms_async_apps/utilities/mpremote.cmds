@@ -1,0 +1,23 @@
+ref: https://docs.micropython.org/en/latest/reference/mpremote.html#mpremote-command-fs
+
+mpremote repl                 # Connect to REPL
+
+mpremote ls                   # List files
+
+mpremote cp adc.py :adc.py    # Copy one file
+
+mpremote cp -r common :common # Copy a directory from local to device
+
+mpremote cp -r :common common # Copy a directory from devicei to local  
+
+mpremote run test_adc.py      # Run a script
+
+mpremote soft-reset           # Soft reset
+
+mpremote fs cp main.py :main.py # copies main.py from the current local directory to the remote filesystem
+
+mpremote rm -r -v  :libs      # will remove the libs directory and all its child items from the device. -v show files being removed.
+ 
+mpremote fs cat X.py          # shows the contents of X.py
+
+print(open("boot.py").read()) # to see file contents while in mpremote repl
