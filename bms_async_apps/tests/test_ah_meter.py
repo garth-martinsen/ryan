@@ -12,7 +12,7 @@ A2D = [17601, 17601, 17599, 17600, 17601, 17601, 17599, 17599, 17599, 17600, 176
 START_TIME =  1785609149.00
 END_TIME   = 1785612749.0
 
-def creates_empty():
+def test_creates_empty():
     #  'vtap', 'lsb', 'rs', 'amp_gain', and 'a2d
     global VTAP, LSB, RS, AMP_GAIN, A2D
     ah_meter = AhMeter(VTAP,LSB,RS,AMP_GAIN,A2D)
