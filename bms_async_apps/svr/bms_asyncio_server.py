@@ -33,7 +33,6 @@ class Server:
         addr = writer.get_extra_info('peername')
         print("Connected:", addr)
         
-    # TODO 1: DONE. Figure out how to add both ADC and GUI  clients and have svr forward to ADC and to GUI when needed...
         try:
             while True:
                 
@@ -48,13 +47,13 @@ class Server:
                     continue
                
                 print(f"\tServer Received MSG: type: {type(data)} ,  data: {data} ")
-                
-                # capture and store the client writers when they send code=0 ,for later use
-                if data["SENDER"]=="GUI":
+                # only stamp msgid on data that is going to ADC and then back to DBI... 
+                if data["SENDER"]=="GUI" and data["CODE"] in [100,174,200,274] :
                     msgid = self.svr_task_manager.dbi.next_msgid()
                     data["MSGID"]=msgid
                     #print(f" msgid stamped msg: {data}")
                 code = data["CODE"]
+                # capture and store the client writers when they send code=0 ,for later use
                 #print(f"type(code) : {type(code)} , value: {code}")
                 if code == 0:
                     if data["SENDER"] == "GUI" :
@@ -63,6 +62,7 @@ class Server:
                         self.clients["ADC"] = writer
                     print(f"\tClients connected to this server: {len(self.clients)}")
                     i=0;
+                    # List the clients that have registered with the svr.
                     for k,v in self.clients.items():
                         i+=1
                         print(i, k, v)

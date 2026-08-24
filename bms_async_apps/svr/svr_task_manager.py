@@ -4,6 +4,8 @@
 # 3.. send json-appropriate msgs to correct async_client.
 
 from common import bms_config
+from common.models.voltage_row import VoltageRow
+from dataclasses import asdict
 from .database_interface import DatabaseInterface
 import json
 from .database_interface_config import APP_CONFIG, BMS
@@ -11,10 +13,11 @@ import math
 
 class SvrTaskManager:
     ''' Handles all msg processing and task_creation for the bms_async_svr event_loop, leaving only
-       event_loop, receive, send functions to the server. Database related tasks need access to the
-       database_interface (dbi), which is initialized with the app_id and version. Assumption: I can
-       pass in args: event_loop, clients dict, msg, use them to create tasks on the event_loop, which
-       will schedule and run the tasks.'''
+    event_loop, receive, send functions to the server. Database related tasks need access to the
+    database_interface (dbi), which is initialized with the app_id and version. Assumption: I can
+    pass in args: event_loop, clients dict, msg, use them to create tasks on the event_loop, which
+    will schedule and run the tasks.'''
+
     def __init__(self, app_id, version):      # removed , svr from argslist
         self.version=version
         self.app_id = app_id
@@ -22,6 +25,12 @@ class SvrTaskManager:
         self.chan_config=[[],[],[]]
         self.get_estimator_parms()
         self.load_luts()
+        # TODO 5: get allowance from app_config or chan_config...For now KLUGE it and just assign it.
+      # allowance = how much can a measued_vb differ from the predicted_vb and still be reportable? 
+        self.allowance=500e-7    
+        self.measurements = {}
+        self.last_vb = {0:4.044, 1: 7.89, 2: 11.95}
+        self.last_vb_time = {0: 1785030326.0, 1: 1785030337.0, 2: 1785030347.0 }
         #TODO: load slope and intercepts from CHANNELS table via dbi
         '''│ 1.33289430358907 │ 0.024164327787965  │
            │ 2.98747763864043 │ 0.0498818752307106 │
@@ -32,11 +41,11 @@ class SvrTaskManager:
         for chan in range(3):
             self.get_chan_config(chan)
         self.load_functions_dict()
-        
+
     def load_functions_dict(self):
         functions_dict  = dict()
         self.functions_dict = functions_dict
-       
+
     def get_app_config(self):
         cfg = self.dbi.get_app_config()
         app_config = APP_CONFIG(*cfg)
@@ -51,14 +60,14 @@ class SvrTaskManager:
 
     def adc_setup_periodic(self, functions_dict, argslist):
         print("Not yet implemented TBD")
-     
+
     def load_luts(self):
         luts=[]
         luts.append(self.dbi.get_lut(0))
         luts.append(self.dbi.get_lut(1))
         luts.append(self.dbi.get_lut(2))
         self.luts=luts
-        
+
     def get_estimator_parms(self):
         self.estimator_parms = self.dbi.get_estimator_parms()               
 
@@ -73,15 +82,26 @@ class SvrTaskManager:
         writer.write(msgj.encode())
         await writer.drain()
         print(f"\tMessage sent to {name} : {msgj}")
-        
+
     async def adc_calibrate(self):
         '''Sends msg from GUI_client, along with MSGID to ADC_client. msg includes: vin, type='c', chan'''
         await self.send_to_client("ADC", msg, clients)
-  
+
     async def adc_measure(self):
         '''Sends msg from GUI_client, along with MSGID to ADC_client. '''
         await self.send_to_client("ADC", msg, clients)
-  
+
+    def predict_vb(self, chan):
+        last_vb = self.last_vb[chan]
+        last_vb_time = self.last_vb_time(chan)
+        discharge_rate= self.discharge_rate[chan]
+        delta_time = time.time() - last_vb_time
+        return last_vb + delta_time * discharge_rate 
+
+    def test_reportability(self, vb):
+        ''' A chan measurememt is marked reportable iff abs(predicted_vb - measured_vb) < self.allowance'''
+        vb_predicted = self.predict_vb(vb)
+        return abs(vb_predicted - vb) < self.allowance
 
     async def create_and_schedule_tasks (self, loop, msg, clients ):
         '''Based on receiver, sender and code fields, route msg to a method where it can be processed.
@@ -97,20 +117,33 @@ class SvrTaskManager:
                 response = {"CODE": code, "SENDER":"SVR", "RECEIVER":"GUI","STATUS":"YOUR MESSAGE WAS FORWARDED TO ADC","MSGID":msg["MSGID"]}
                 await self.send_to_client("GUI", response, clients)
             if code in [101,201]:
+                # TODO: Test chan measurement for reportability...
+                reportable= self.test_reportability(msg)
                 stats_result_dict = self.compute_stats(msg)
-                
+                meas_id = msg["MEAS_ID"]                
                 print(f"result type {type(stats_result_dict)}  stats_result_dict: {stats_result_dict}")
                 # TODO 3: FINISH 101 201 ... format for needed cols for BMS table pass in correct arglist...
                  #("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
-                store_to_bms_dict= {"ID" : "", "MSGID":msg["MSGID"], "VERSION": msg["VERSION"], "TIMESTAMP": msg["TIMESTAMP"],
-                                    "TYPE" : msg["TYPE"], "CHAN" : msg["CHAN"], "A2D_MEAN" : stats_result_dict["A2D_MEAN"],
+                store_to_bms_dict= {"ID" : "", "MSGID":msg["MSGID"], "VERSION": msg["VERSION"], 
+                "TIMESTAMP": msg["TIMESTAMP"], "MEAS_ID": meas_id, "TYPE" : msg["TYPE"], 
+                "CHAN" : msg["CHAN"], "A2D_MEAN" : stats_result_dict["A2D_MEAN"],
                                      "VM_MEAN" : stats_result_dict["VM_MEAN"], "VM_SD" :stats_result_dict["VM_SD"], "VB" :stats_result_dict["VB"],
                                      "VIN" : msg["VIN"], "ERROR" :stats_result_dict["ERROR"], "SAMP_SZ" : msg["SAMP_SZ"],
                                      "DISCARD_SZ" : stats_result_dict["DISCARD_SZ"], "KEEP_SZ" : stats_result_dict["KEEP_SZ"],
                                      "A2D" : msg["A2D"]}
                 print(f"store_to_bms_dict for  BMS table: type: {type(store_to_bms_dict)} msg: { [store_to_bms_dict]} ")
                 bms_id = self.dbi.save_to_bms( store_to_bms_dict  )
-                # send to GUI  client the 'store_to_bms_dict'  adding bms_id and removing "A2D" 
+                # store to self.measurements under meas_id. When chan 2 is complete, check set reportability.
+                # if set is reportable, send rows to to GUI client.
+                lst = self.measurements.get(meas_id, [])
+                lst.append(VoltageRow(bms_id, timestamp, _type, chan, vb, ))
+                self.measurements[meas_id]= lst
+                if measurement[meas_id]:  
+                    rows = [
+                    VoltageRow(...),
+                    VoltageRow(...),
+                    VoltageRow(...),
+                    ]
                 store_to_bms_dict["ID"]=bms_id
                 store_to_bms_dict.pop("A2D")
                 await self.send_to_client("GUI", store_to_bms_dict, clients)

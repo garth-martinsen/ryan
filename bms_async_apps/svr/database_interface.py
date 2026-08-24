@@ -6,10 +6,11 @@ Later it was determined to send raw tuples across the websocket and to apply the
 """
 import sqlite3
 from common import secrets
+from common.bms_config import APP_ID, VERSION
 import time
 import datetime
 import json
-from .database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
+from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
 
 from collections import OrderedDict, namedtuple
 import re
@@ -24,10 +25,10 @@ LUT_ITEM = namedtuple("LUT_ITEM", ("ID", "APP_ID", "VERSION", "CHAN", "VM", "VIN
  
 class DatabaseInterface:
 
-    def __init__(self,app_id, version):
+    def __init__(self,APP_ID, VERSION):
         self.db_path = secrets.db_path
-        self.app_id =app_id
-        self.version=version
+        self.app_id =APP_ID
+        self.version=VERSION
         print(f"dbpath: {self.db_path} ")
         print(f"app_id: {self.app_id} ")
         print(f"version: {self.version}")
@@ -48,26 +49,35 @@ class DatabaseInterface:
         self.funct_dict = self.create_function_dict()
         self.funct_desc = funct_desc
 
+    #TODO 4: create command for gui to set adc_measurement parms...The 310 should get all app_config attrs including measurement ones. 300 should save
     def create_function_dict(self):
             funct_dict  = dict()
             funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
-            funct_dict[302]= self. sync_time                                       # ( [] )
-            funct_dict[310]= self.get_app_config                               # ( )
-            funct_dict[312]= self.get_chan_config                              # ( [chan] )
-            funct_dict[320]= self.save_to_bms                                   # ([ bms: BMS ])
-            funct_dict[330]= self.list_bms                                           # ([ chan, type])
-            funct_dict[340]= self.get_bms_a2d_samples                  # ([ bms_id])
-            funct_dict[350]= self.get_lut                                              # ( [chan] )
-            funct_dict[352]= self.get_lut_item                                     # ( [chan, vin] )
-            funct_dict[360]= self.get_lut_timestamp                           # ([ chan ])
-            funct_dict[370]= self.update_lut_pair                               # ([  _id,  vm,  vin] )    
-            funct_dict[380]= self.update_lut_timestamp                    # ([  _id,  vm,  vin] )
-            funct_dict[390]= self.get_estimator_parms                      #([])
+            funct_dict[302]= self.sync_time                                       # ( [] )
+            funct_dict[304]= self.get_max_meas_id                                 # ( [] )
+            funct_dict[310]= self.get_app_config                                  # ( )
+            funct_dict[312]= self.get_chan_config                                 # ( [chan] )
+            funct_dict[320]= self.save_to_bms                                     # ([ bms: BMS ])
+            funct_dict[330]= self.list_bms                                        # ([ chan, type])
+            funct_dict[340]= self.get_bms_a2d_samples                             # ([ bms_id])
+            funct_dict[350]= self.get_lut                                         # ( [chan] )
+            funct_dict[352]= self.get_lut_item                                    # ( [chan, vin] )
+            funct_dict[360]= self.get_lut_timestamp                               # ([ chan ])
+            funct_dict[370]= self.update_lut_pair                                 # ([  _id,  vm,  vin] )    
+            funct_dict[380]= self.update_lut_timestamp                            # ([  _id,  vm,  vin] )
+            funct_dict[390]= self.get_estimator_parms                             #([])
             return funct_dict
             
     def call_function( self, code, argslist):
         print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
         return self.funct_dict[code]( *argslist )
+
+    def get_max_meas_id(self ):
+        '''Selects the max(meas_id) from bms table and return it to adc to set its meas_id on startup. '''
+        cu = self.get_cursor()
+        select_str = "select max(meas_id) from bms "
+        res = cu.execute(select_str)
+        return res.fetchone()
     
     def get_column_headers(self, table_name):
         headers=[]
@@ -172,14 +182,16 @@ class DatabaseInterface:
         """
         cfg = []
         cu =self.get_cursor()
-        select_str = f"SELECT * FROM CHANNELS where  app_id = {self.app_id}  and version = {self.version} and chan={chan};"
         #print("select_str: ", select_str)
         # Each row is a channel.
-        for row in cu.execute(select_str):
-            #print("row: ", row)
-            cfg.append(CHAN_CONFIG(*row))
-        self.chan_cfgs[chan]=cfg
+        for chan in range(3):
+            select_str = f"SELECT * FROM CHANNELS where  app_id = {self.app_id}  and version = {self.version} and chan={chan};"
+            for row in cu.execute(select_str):
+                print("row: ", row)
+                cfg.append(CHAN_CONFIG(*row))
+            self.chan_cfgs[chan]=cfg
         return cfg
+
      #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
     def get_estimator_parms(self ):
         est_parms=[]
@@ -380,16 +392,16 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
 
     def check_bms_id_in_a2d(self):
         '''Returns the id of the last bms record and the bms_id of the last A2D record. Good to ensure sync.'''
-        a2d_select_str='select max(bms_id)  from A2D'
+        a2d_select_str='select max(id),bms_id  from A2D'
         bms_select_str = 'select max(id) from BMS'
         cu = self.get_cursor()
         #print(f"a2d_select_str: {a2d_select_str}")
         #print(f"bms_select_str: {bms_select_str}")
         res=cu.execute(a2d_select_str)
-        bms_id = res.fetchone()[0]
+        bms_id = res.fetchone()[1]
         res=cu.execute(bms_select_str)
         _id = res.fetchone()[0]
-        #print(f"Returning bms.id = {_id} and a2d.bms_id = {bms_id}")
+        print(f"Returning bms.id = {_id} and a2d.bms_id = {bms_id}")
         return (_id, bms_id) 
         
         

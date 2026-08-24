@@ -11,9 +11,9 @@ CHAN_CONFIG_FIELDS = ( 'ID', 'APP_ID', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_
 APP_CONFIG = namedtuple( "APP_CONFIG", APP_CONFIG_FIELDS )                                                                        #19 fields
 CHAN_CONFIG= namedtuple("CHAN_CONFIG", CHAN_CONFIG_FIELDS)
 Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
-BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
+BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "MEAS_ID", "REPORTABLE", "APP_ID")
 
-BMS = namedtuple("BMS", BMS_FIELDS )   #16 fields 6/4/2026
+BMS = namedtuple("BMS", BMS_FIELDS )   #19 fields 8/17/2026
 # LUTS schema: ID  | app_id | chan |   vm   | vin  | version 
 LUT =namedtuple("LUT", ("ID", "APP_ID", "VM", "VIN", "VERSION") )
 
@@ -28,9 +28,17 @@ Stats=namedtuple("Stats",("a2d","vm","vm_sd","vb"))
 #TODO: design handling of the following responses in svr_task_mgr info only
 # dict to display the dbi interface codes (cmds) and the arglist for each...
 
-funct_desc = {300: 'save_config(  msg : Config )',       302: 'sync_time()',
-                       310: 'get_config( chan : int )',                 320:'save_to_bms( msg :BMS )' ,
-                       330: 'list_bms( chan:int, atype:str) ',      340: 'get_bms_a2d_samples( bms_id : int)',
-                       350: 'get_lut( chan:int)',                          352: 'get_lut_item(chan:int, vin:float)',
-                       360: 'get_lut_timestamp( chan:int )',      370:'update_lut_pair(  _id:int,   vm:float,   vin:float)' ,
-                       380: 'update_lut_timestamp( chan:int )', 390: 'get_estimator_parms( )'  }
+funct_desc = {300: 'save_config(  msg : Config )',       
+              302: 'sync_time()',
+              304: 'max_meas_id()',
+              310: 'get_app_config()',          
+              312: 'get_chan_config( chan : int )',
+              320:'save_to_bms( msg :BMS )' ,   
+              330: 'list_bms( chan:int, atype:str) ', 
+              340: 'get_bms_a2d_samples( bms_id : int)', 
+              350: 'get_lut( chan:int)',
+              352: 'get_lut_item(chan:int, vin:float)',  
+              360: 'get_lut_timestamp( chan:int )',
+              370:'update_lut_pair( _id:int, vm:float, vin:float)' , 
+              380: 'update_lut_timestamp( chan:int )', 
+              390: 'get_estimator_parms( )'  }
