@@ -1,8 +1,8 @@
 # file test_dbi.py  Given a msg, save the bms in the msg to BMS table in database rt_db.   Run in Python3
 
-from .database_interface import DatabaseInterface, LUT_ITEM
-from .database_interface_config import APP_CONFIG, CHAN_CONFIG, LUT, BMS, BMS_FIELDS, APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS
-from .dbi_records import  app_config,  chan_configs,  bms, samples, answers, lut_answers
+from svr.database_interface import DatabaseInterface, LUT_ITEM
+from svr.database_interface_config import APP_CONFIG, CHAN_CONFIG, LUT, BMS, BMS_FIELDS, APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS
+from svr.dbi_records import  app_config,  chan_configs,  bms, samples, answers, lut_answers
 #from lut_convert import LutConvert as LC
 from collections import OrderedDict
 from copy import deepcopy
@@ -69,16 +69,16 @@ class Test_DBI:
         print(f"Passed  test_get_lut chan: {chan}")
          
      #TODO 6: This test queries the db. Not good practice for unit tests... Also too many literals...  
+
     def test_chan_config(self, app_id, chan):
         '''fetches the  record from the CONFIG table for the chan'''
         print("===================")
         print(f"testing chan_config() for chan: {chan}")
         # get config from the databaseInterface on table config.
         record = dbi.get_chan_config( chan)
-        print(f"type(record):  {type(record)} config record for chan :{chan}: {CHAN_CONFIG(*record[0])} ")
-        cfg= CHAN_CONFIG(*record[0])
-        #dbi.cfgs[chan]=cfg
-       # print(f" config[0]: {configs[chan]}")
+
+        print(f"type(record):  {type(record)} config record for chan :{chan}: {CHAN_CONFIG(*record)} ")
+        cfg= CHAN_CONFIG(*record)
         #assert len(records) == 3, "There should be only 3 records, one for each channel"
        
         EPS=1e-6
@@ -90,7 +90,7 @@ class Test_DBI:
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
 
         elif chan == 1:
-            print(f"chan 1 R1: {cfg.R1}  R2: {cfg.R2}")
+            print(f"chan:{chan}  R1: {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC == 'Two Cells 6.0-9.0V' , "Wrong description"
             assert (cfg.C1 - 1.0e-07 < EPS), f"Wrong value for C1. Should be {1e-07}"
             assert (cfg.R1 - 222200 < EPS) , f"Wrong value for r1. Should be: {cfg.R1}"

@@ -182,15 +182,9 @@ class DatabaseInterface:
         """
         cfg = []
         cu =self.get_cursor()
-        #print("select_str: ", select_str)
-        # Each row is a channel.
-        for chan in range(3):
-            select_str = f"SELECT * FROM CHANNELS where  app_id = {self.app_id}  and version = {self.version} and chan={chan};"
-            for row in cu.execute(select_str):
-                print("row: ", row)
-                cfg.append(CHAN_CONFIG(*row))
-            self.chan_cfgs[chan]=cfg
-        return cfg
+        select_str = f"SELECT * FROM CHANNELS where  app_id = {self.app_id}  and version = {self.version} and chan={chan};"
+        res = cu.execute(select_str)
+        return res.fetchone()
 
      #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
     def get_estimator_parms(self ):
