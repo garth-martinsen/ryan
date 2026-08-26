@@ -4,8 +4,8 @@ from collections import namedtuple
 
 # named tuples... Where they match db table column names they will be upper case.
 # APPS: (ID, OWNER,  APP_DESC ,TIMESTAMP  , TEMPC, ADC_FSR, ADC_STEPS, ADC_SAMPLE_RATE, VERSION, VERSION_DESC) 
-APP_CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_DESC', 'TIMESTAMP',  'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'VERSION', 'VERSION_DESC')
-                                     
+APP_CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_DESC', 'VERSION', 'VERSION_DESC','TIMESTAMP',  'TEMPC', 'ADC_VOLT_FSR','ADC_AMPS_FSR', 'ADC_STEPS','A2D_SZ','ADC_VOLT_MEAS_PERIOD','ADC_AMP_MEAS_PERIOD','PACK_VOLTS','RS', 'AMP_GAIN')
+         # from DB schema ID │ OWNER │  APP_DESC   │ VERSION │ VERSION_DESC │  TIMESTAMP   │ TEMPC │ ADC_VOLT_FSR │ ADC_AMPS_FSR │ ADC_STEPS │ A2D_SZ │ ADC_VOLT_MEAS_PERIOD │ ADC_AMP_MEAS_PERIOD │ PACK_VOLTS │    RS    │ AMP_GAIN |                                     
 #CHANNELS: ( ID, APP_ID, CHAN,       CHAN_DESC      , VERSION, VERSION_DESC,    TIMESTAMP    ,   C1   ,    R1   ,    R2   ,      SLOPE      , LUT_CALIBRATED,       LUT_TS      , K_FACTOR,     INTERCEPT    )
 CHAN_CONFIG_FIELDS = ( 'ID', 'APP_ID', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC',  'TIMESTAMP',  'C1' ,'R1' , 'R2' ,  'SLOPE'  , 'LUT_CALIBRATED',  'LUT_TS'  , 'K_FACTOR' , 'INTERCEPT')
 APP_CONFIG = namedtuple( "APP_CONFIG", APP_CONFIG_FIELDS )                                                                        #19 fields

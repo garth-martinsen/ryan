@@ -49,7 +49,8 @@ class SvrTaskManager:
     def get_app_config(self):
         cfg = self.dbi.get_app_config()
         app_config = APP_CONFIG(*cfg)
-        FSR=app_config.ADC_FSR
+        print(f"app_config: {app_config}")
+        FSR=app_config.ADC_VOLT_FSR
         STEPS = app_config.ADC_STEPS
         self.lsb = FSR/STEPS
 
@@ -236,7 +237,11 @@ class SvrTaskManager:
           First  if vm is right on a boundary key, returns lut[boundary_key], then
           if vm is out of bounds, prints error statement and returns None,
           else interpolates vm to yield vb '''
-        vm, lut  = self.matchesboundary(chan, vm, self.version)
+        lut = self.luts[chan]
+        lo_vm = min(lut.keys())
+        hi_vm = max(lut.keys()) 
+        if vm < lo_vm or vm > hi_vm:
+            vm = None
         if vm == None:
             # vm was outside of allowable bounds... so vb is undefined...
             return None       
@@ -266,31 +271,4 @@ class SvrTaskManager:
          '''Returns the mean of a list of values. Used for simple mean and also variances)'''
          return sum(alist)/len(alist)
     
-    def matchesboundary(self, chan:int, vm:float, version:int) :
-        '''Returns tuple(vm, lut). Vm is None if outside of allowed boundary limits, Returns vm if vm is within tol of first or last key.'''
-     
-        lut=self.luts[chan]
-        keys = list(lut.keys())
-        minkey = keys[0]
-        maxkey = keys[-1]
-        #print(f"\t bounds for chan {chan}: {minkey}, {maxkey}")
-        vinstep = 0.1            # all luts have vin in 0.1V steps.
-        tol = vinstep/2*self.vd_fracts[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
-        #allowable vm values to set vm = minkey or maxkey depending...
-        lo_tol = minkey - tol
-        hi_tol = maxkey + tol
-        if vm < lo_tol or vm > hi_tol:
-            print( f"Error: {minkey} <= vm:{vm} <= {maxkey} violated. Returning None for vm")
-            return (None, lut)
-        else:
-            # if vm is equal to minkey or maxkey, set vm to minkey or maxkey depending
-            vmr=None
-            if  lo_tol < vm < keys[1]:
-                vmr = minkey
-            elif keys[-2] < vm < hi_tol:
-                vmr = maxkey
-            else:
-                #passed in vm is inside of lut boundaries so it can be interpolated.
-                vmr = vm
-        return (vmr, lut)
                     
