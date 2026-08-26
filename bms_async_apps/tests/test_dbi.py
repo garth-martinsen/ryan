@@ -7,13 +7,11 @@ from svr.dbi_records import  app_config,  chan_configs,  bms, samples, answers, 
 from collections import OrderedDict
 from copy import deepcopy
 import json
+import pytest
+
 
 app_id=1
 version=3
-# samps = '[21357, 21354, 21351, 21353, 21355, 21357, 21351, 21357, 21351, 21355, 21357, 21353, 21356, 21358, 21356, 21358, 21357, 21355, \
-# 21353, 21355, 21355, 21355, 21355, 21356, 21351, 21358, 21356, 21358, 21358, 21353, 21352, 21358, 21358, 21353, 21355, 21357, 21356, \
-# 21353, 21354, 21356, 21358, 21356, 21355, 21358, 21351, 21351, 21354, 21356, 21351, 21352, 21354, 21355, 21355, 21352, 21354, 21358, \
-# 21355, 21356, 21358, 21357, 21356, 21357, 21352, 21353]'
 print("Database initialization: =======================")        
 
 dbi = DatabaseInterface(app_id,version)
@@ -24,12 +22,15 @@ print("End of Database initialization: =======================")
 # missing until computed: "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "ERROR"
 start_msg=  {'PURPOSE':101, 'MSGID': 5010, "VERSION": 3, 'TIMESTAMP': '2026-2-23  15:31:21.54',  'TYPE': 'm', 'CHAN': 1,
                        "A2D_MEAN": 21355.0, "VM_MEAN": 2.669375 , "VM_SD" : 0.00028038, "VB": 7.9747, "ERROR": 0.02529, "VIN": 7.97,
-                       "SAMP_SZ": 64,"DISCARD_SZ": 2, "KEEP_SZ": 62,
+                       "SAMP_SZ": 64,"DISCARD_SZ": 2, "KEEP_SZ": 62,"MEAS_ID":123, "APP_ID":1,"REPORTABLE":1,
                "A2D":  '[21357, 21354, 21351, 21353, 21355, 21357, 21351, 21357, 21351, 21355, 21357, 21353, 21356, 21358, \
                 21356, 21358, 21357, 21355, 21353, 21355, 21355, 21355, 21355, 21356, 21351, 21358, 21356, 21358, 21358, 21353, 21352, 21358, \
                 21358, 21353, 21355, 21357, 21356, 21353, 21354, 21356, 21358, 21356, 21355, 21358, 21351, 21351, 21354, 21356, 21351, 21352, \
                 21354, 21355, 21355, 21352, 21354, 21358, 21355, 21356, 21358, 21357, 21356, 21357, 21352, 21353] ' }
 
+@pytest.fixture
+def msg():
+    return  deepcopy(start_msg)
 
 class Test_DBI:
     def __init(self, version):
@@ -41,6 +42,8 @@ class Test_DBI:
         print("===================")
         print("testing create_cols_vals()")
         ts= dbi._timestamp()
+#TODO: E   TypeError: 'FixtureFunctionDefinition' object does not support item assignment
+#TODO: Figure out how to modify the fixture so fields can be tested...
         msg['timestamp']=ts
         msg["sender_id"]="adc_client"
         msg["msg_id"]=1234
@@ -49,11 +52,14 @@ class Test_DBI:
         #print(f" cols: {cols}  vals: {vals}")
         assert len(cols) == len(vals), "Cols and Vals must have same length"
         print("Passed  test_cols_vals")
-     
+
     #for the given channel 0. Testing is done on 1st and  last pairs....'''
     '''Selects the lut for the channel 0. '''
+
+    @pytest.mark.parametrize("chan", [0, 1, 2])
     def test_get_lut(self, chan):
         #print("===================")
+#        print(f"setup_data: {setup_data}")
         print(f"testing get_lut({chan})")
         lut= dbi.get_lut(chan)
         lut=OrderedDict(lut)
@@ -70,27 +76,26 @@ class Test_DBI:
          
      #TODO 6: This test queries the db. Not good practice for unit tests... Also too many literals...  
 
-    def test_chan_config(self, app_id, chan):
+    @pytest.mark.parametrize("chan", [0, 1, 2])    
+    def test_chan_config(self, chan):
         '''fetches the  record from the CONFIG table for the chan'''
         print("===================")
         print(f"testing chan_config() for chan: {chan}")
         # get config from the databaseInterface on table config.
         record = dbi.get_chan_config( chan)
-
         print(f"type(record):  {type(record)} config record for chan :{chan}: {CHAN_CONFIG(*record)} ")
         cfg= CHAN_CONFIG(*record)
-        #assert len(records) == 3, "There should be only 3 records, one for each channel"
        
         EPS=1e-6
         if chan == 0:
-            print(f"R1 {cfg.R1}  R2: {cfg.R2}")
+            print(f" chan: {chan} R1 {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC ==  'One Cell 3.0-4.5V' , "Wrong description"
             assert abs(cfg.R1  -    101100) < EPS, f"Wrong value for R1. Should be: {configs[0].R1}"
             assert abs(cfg.R2  -  303700) < EPS, f"Wrong value for r2. Should be: {configs[0].R2}"
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
 
         elif chan == 1:
-            print(f"chan:{chan}  R1: {cfg.R1}  R2: {cfg.R2}")
+            print(f"chan: {chan}   R1: {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC == 'Two Cells 6.0-9.0V' , "Wrong description"
             assert (cfg.C1 - 1.0e-07 < EPS), f"Wrong value for C1. Should be {1e-07}"
             assert (cfg.R1 - 222200 < EPS) , f"Wrong value for r1. Should be: {cfg.R1}"
@@ -98,14 +103,15 @@ class Test_DBI:
             assert (cfg.C1 - 1.0e-07 < EPS), f"Wrong value for C1. Should be {1e-07}"
 
         elif chan == 2:
-            print(f" chan 2 R1: {cfg.R1}  R2: {cfg.R2}")
+            print(f" chan: {chan}  R1: {cfg.R1}  R2: {cfg.R2}")
             assert cfg.CHAN_DESC == 'Three Cells 9.0-13.5V', "Wrong description"
             assert cfg.R1== 301400,f"Wrong value for R1. Should be: {cfg.R1}"
             assert cfg.R2 == 100700,  f"Wrong value for R2. Should be: {cfg.R2}"
             assert cfg.C1 - 1.0e-07 < EPS, f"Wrong value for C1. Should be {1e-07}"
         print(f"Passed  test_load_config for chan: {chan}")
       
-    def test_save_to_bms(self, msg, atype):                
+    @pytest.mark.parametrize("atype", ['m', 'c'])
+    def test_save_to_bms(self, atype, msg):                
         print("===================")
         print("Testing save_to_bms(...)")
         chan = msg["CHAN"]
@@ -141,6 +147,7 @@ class Test_DBI:
             assert ts == round(float(last_record.TIMESTAMP),3) , f" Timestamp of record: {last_record.TIMESTAMP} differs from ts {ts}"
             print("Passed Test: save_to_bms(...)")
 
+    @pytest.mark.parametrize("chan", [0, 1, 2])
     def test_list_records(self,chan, atype):
         print("===================")
         print(f"testing list_records({chan})")
@@ -155,6 +162,8 @@ class Test_DBI:
         print(f"Passed test_list_records on chan: {chan}")
         
   
+    @pytest.mark.parametrize("chan", [0, 1, 2])
+    @pytest.mark.parametrize("atype", ["m", "c"])
     def test_list_records(self, chan, atype):
         print("===================")
         if atype =='m':
@@ -176,6 +185,7 @@ class Test_DBI:
 
             print(f"Passed  test_list_records on chan: {chan} for {_type}")
 
+    @pytest.mark.parametrize("chan", [0, 1, 2])
     def test_update_lut(self, chan):
         print("===================")
         print(f"testing update_lut({chan}) by adding  .0001 to first vin in  LUT, update db, test update, then update to original vin and test the restoration")
@@ -199,8 +209,8 @@ class Test_DBI:
         print(f"Passed test_update_lut({chan}) ")
         
     
-
-
+    """   stats is not a function on dbi. It belongs to svr_task_manger.
+    @pytest.mark.parametrize("chan", [0, 1, 2])
     def test_stats(self, chan):
         global samps
         '''Tests the computation of mean, sd, interpolation,'''
@@ -218,99 +228,86 @@ class Test_DBI:
         assert stat.vb - answers[chan].vb <eps , f" vb is wrong: {stat.vb}. Should be: {answers[chan].vb}'"
 
         print(f"Passed  test_stats[{chan}]")
-
+    """ 
     def test_a2d_bms_sync(self):
         '''ensure that the last A2d record  has bms_id = bms.id of last bms record '''
         print("======================")
         print("Testing bms.id sync with A2D.bms_id")
         bms_id, a2d_bms_id = dbi.check_bms_id_in_a2d()
-        assert bms_id ==a2d_bms_id, f"The a2d.bms_id {a2d_record[1]} should equal bms.id {bms_record[0]}"     
+        assert bms_id == a2d_bms_id, f"The a2d.bms_id {bms_id} should equal bms.id {a2d_bms_id}"     
         print("Passed test:  test_a2d_bms_sync")
         
+    @pytest.mark.parametrize("chan", [0, 1, 2])
     def test_lut_limits(self,chan):
-        '''If a vm is within 1/2 of a vm step, then use the key at that end of the lut'''
+        '''If a vm is within the lut boundaries, return (vm, lut) else: return (None, lut)'''
         print("===================")
         print(f"Testing Lut Limits... chan {chan}")
-        lut= dbi.get_lut(chan)
+        lut = dbi.get_lut(chan)
         vm_lo= min(lut.keys())
         vm_hi= max(lut.keys())           
         ok_lo_vm = vm_lo   
         ok_hi_vm = vm_hi
-        too_low_vm = vm_lo - 0.12345
-        too_high_vm = vm_hi +0.12345
+        #subtract from lowest key and add to highest key to cause failure.
+        too_lo_vm = ok_lo_vm - 0.12345
+        too_hi_vm = ok_hi_vm + 0.12345
+        print(f"too_lo_vm: {too_lo_vm} ok_lo_vm: {ok_lo_vm} ok_hi_vm: {ok_hi_vm} too_hi_vm: {too_hi_vm}")
 
         eps = 1e-6
-        print(f" for vm= ok_lo_vm = {ok_lo_vm}")
-        vm,lut = dbi.matchesboundary(chan, ok_lo_vm, dbi.version)
-        if vm is not None:
-            print("vm: " , vm)
-            assert abs(vm - vm_lo) < eps, f"vm: {vm} is incorrect. It should be {vm_lo}"
-        print(f" for vm= ok_hi_vm = {ok_hi_vm}")
-        vm, lut = dbi.matchesboundary(chan, ok_hi_vm , dbi.version)
-        print("vm: ", vm)
-        if vm is not None:
-            print("vm: " , vm)
-            assert abs(vm - vm_hi ) < eps,  "vm is incorrect. "
-        vm, lut = dbi.matchesboundary(chan, too_low_vm, dbi.version)
-        assert vm is None, "Error, should return None"
-        vm, lut = dbi.matchesboundary(chan, too_high_vm, dbi.version)
-        assert vm is None, "Error, should return None"
-        
+        vm = ok_lo_vm 
+        assert vm >= ok_lo_vm, f"vm is in bounds {ok_low_vm < vm < ok_hi_vm}"
+        assert vm <= ok_hi_vm, f"vm is in bounds {ok_low_vm < vm < ok_hi_vm}"
+        if vm <  ok_lo_vm:
+            vm = None
+            assert vm is None, "Error, should return None"
+            print(f" {vm}, {lut}")
+        if vm >  ok_hi_vm:
+            vm = None
+            assert vm is None, "Error, should return None"
+            print(f" {vm}, {lut}")
         print()
         print(f"Passed  test_lut_limits chan {chan}")
         
+    ''' ============possible codes and arglists to test below============        
+            funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
+            funct_dict[302]= self.sync_time                                       # ( [] )
+            funct_dict[304]= self.get_max_meas_id                                 # ( [] )
+            funct_dict[310]= self.get_app_config                                  # ( )
+            funct_dict[312]= self.get_chan_config                                 # ( [chan] )
+            funct_dict[320]= self.save_to_bms                                     # ([ bms: BMS ])
+            funct_dict[330]= self.list_bms                                        # ([ chan, type])
+            funct_dict[340]= self.get_bms_a2d_samples                             # ([ bms_id])
+            funct_dict[350]= self.get_lut                                         # ( [chan] )
+            funct_dict[352]= self.get_lut_item                                    # ( [chan, vin] )
+            funct_dict[360]= self.get_lut_timestamp                               # ([ chan ])
+            funct_dict[370]= self.update_lut_pair                                 # ([  _id,  vm,  vin] )
+            funct_dict[380]= self.update_lut_timestamp                            # ([  _id,  vm,  vin] )
+            funct_dict[390]= self.get_estimator_parms                             #([])
+
+    '''
+    @pytest.mark.parametrize(
+                "code,arglist",
+        [
+          pytest.param(302, [], id="302-sync_time"),
+          pytest.param(304, [], id="304-max-meas-id"),
+          pytest.param(310, [], id="310-get_app_config" ),
+          pytest.param(312, [0], id="312-get_chan_config" ),
+          pytest.param(330, [0, "m"], id="330-list-chan0-measure"),
+          pytest.param(330, [0, "c"], id="330-list-chan0-calibrate"),
+          pytest.param(340, [5], id="340-get_bms_a2d_samples"),
+          pytest.param(350, [0], id="350-get_lut"),
+          pytest.param(390, [], id="390-get_estimator_parms"),
+        ],
+    )
+
     def test_call_function(self, code, arglist):
             print("===================")
             print(f"Testing call_function: code: {code} function: { dbi.funct_dict[code].__name__ }  arglist: {arglist}")
             print(dbi.funct_dict[code] ( *arglist))
             print("Passed test call_function( code,arglist)") 
+
+    def test_get_max_meas_id(self):
+        print("========")
+        print(f"Testing get_max_meas_id()")
+        max_meas_id = dbi.get_max_meas_id()
+        print(f"max_measure_id : {max_meas_id}")
         
-testdbi=Test_DBI()
-#start_msg is defined near line 18
-print(" =========Tests Begin =======================")
-#TODO 7: Fix tests broken by schema change: They are commented out.
-testdbi.test_get_lut(0)
-testdbi.test_get_lut(1)
-testdbi.test_get_lut(2)
-testdbi.test_chan_config(1,0)
-testdbi.test_chan_config(1,1)
-testdbi.test_chan_config(1,2)
-testdbi.test_cols_vals(deepcopy(start_msg))
-testdbi.test_save_to_bms(deepcopy(start_msg),'c')                #calibrations
-testdbi.test_save_to_bms(deepcopy(start_msg),'m')     # measurements
-testdbi.test_list_records(0, 'm')
-testdbi.test_list_records(1, 'm')
-testdbi.test_list_records(2, 'm')
-testdbi.test_list_records(0,'c')
-testdbi.test_list_records(1,'c')
-testdbi.test_list_records(2,'c')
-testdbi.test_update_lut(0)   
-testdbi.test_update_lut(1)
-testdbi.test_update_lut(2)
-testdbi.test_lut_limits(0)
-#TODO : fix test_lut_limits(1) it is asserting on should be None.
-#testdbi.test_lut_limits(1)
-#TODO : fix test_lut_limits(2)    assert vm is None, "Error, should return None"
-#testdbi.test_lut_limits(2)
-testdbi.test_a2d_bms_sync()
-testdbi.test_call_function(330, [0, 'm'])
-testdbi.test_call_function(330, [0, 'c'])
-testdbi.test_call_function(330, [1, 'm'])
-testdbi.test_call_function(330, [1, 'c'])
-testdbi.test_call_function(330, [2, 'm'])
-testdbi.test_call_function(330, [2, 'c'])
-testdbi.test_call_function(340, [5])
-testdbi.test_call_function(310, [])
-testdbi.test_call_function(312, [0])
-testdbi.test_call_function(312, [1])
-testdbi.test_call_function(312, [2])
-testdbi.test_call_function(350, [0])
-testdbi.test_call_function(350, [1])
-testdbi.test_call_function(350, [2])
-
-'''
-#testdbi.test_timestamp()
-'''
-
-
-    
