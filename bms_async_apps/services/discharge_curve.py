@@ -17,7 +17,7 @@ discharge_curve[1990]=3.3
 discharge_curve[2000 ]= 3.2
 
 class Interpolator:
-'''Interpolates for Voltage in a partially depleted LiIon Cell that fall between keys in discharge curve... '''
+    '''Interpolates for Voltage in a partially depleted LiIon Cell that fall between keys in discharge curve... '''
     def __init__(self):
         self.dc=discharge_curve
 
