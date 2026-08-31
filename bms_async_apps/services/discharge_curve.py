@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 
+'''This data is for one LiIon Cell. It must be studied further to apply it to 3 cells in series.'''
 discharge_curve = OrderedDict({})
 discharge_curve[0]=4.2
 discharge_curve[100]= 4.1
@@ -16,6 +17,7 @@ discharge_curve[1990]=3.3
 discharge_curve[2000 ]= 3.2
 
 class Interpolator:
+'''Interpolates for Voltage in a partially depleted LiIon Cell that fall between keys in discharge curve... '''
     def __init__(self):
         self.dc=discharge_curve
 
