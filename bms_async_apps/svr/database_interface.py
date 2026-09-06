@@ -10,7 +10,7 @@ from common.bms_config import APP_ID, VERSION
 import time
 import datetime
 import json
-from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, Stats, funct_desc
+from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, AMP_HRS_FIELDS, Stats, funct_desc
 
 from collections import OrderedDict, namedtuple
 import re
@@ -59,6 +59,10 @@ class DatabaseInterface:
             funct_dict[312]= self.get_chan_config                                 # ( [chan] )
             funct_dict[320]= self.save_to_bms                                     # ([ bms: BMS ])
             funct_dict[330]= self.list_bms                                        # ([ chan, type])
+            funct_dict[334]= self.get_ah_total                                    # ([])
+            funct_dict[336]= self.save_amp_hrs                                    # ([])
+            funct_dict[338]= self.get_last_amp_hrs                                # ([])
+            funct_dict[342]= self.delete_test_amp_hrs                             # ([])
             funct_dict[340]= self.get_bms_a2d_samples                             # ([ bms_id])
             funct_dict[350]= self.get_lut                                         # ( [chan] )
             funct_dict[352]= self.get_lut_item                                    # ( [chan, vin] )
@@ -131,7 +135,7 @@ class DatabaseInterface:
 #         return Config(*row)
 
 
-    def _create_cols_vals(self, msg):
+    def _create_cols_vals(self, msg, table_fields):
         '''Filters out fields not in BMS schema,
          Returns two synchronized lists with column names (cols) and values (vals) to facilitate inserts into db.
          BMS_FIELDS in database_interface_config.py must be kept current!!!'''
@@ -141,12 +145,13 @@ class DatabaseInterface:
             msg.pop("ID")
         rejects=[]
         for k,v in msg.items():
-            if k in BMS_FIELDS:
+            if k in table_fields:
                 cols.append(k)
                 vals.append(v)
             else:
                 rejects.append(k)
         print(" create cols_vals rejected columns: ", rejects)
+        print(" cols_vals: ", cols, vals)
         return (cols, vals)
 
 #     def list_all_choices(self):
@@ -198,7 +203,7 @@ class DatabaseInterface:
         return est_parms
 
 
-    #TODO 3 : Implement save_config(...) 
+    #TODO 3 : Implement save_config(...) This should  indicate a new version! 
     def save_config(self,  msg:Config):
         '''TBD... used to persist with new values... version update '''
         pass
@@ -217,7 +222,7 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         chan = msg["CHAN"]
         vin = msg["VIN"]
         # filters out msg fields not in BMS. Also remove "ID" so that db puts in next ID.
-        cols, vals = self._create_cols_vals(msg)      
+        cols, vals = self._create_cols_vals(msg, BMS_FIELDS)      
          
         print(f"called dbi. save_measurement() with cols: {cols[1:]} values: {vals[1:]} ")
         bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "   
@@ -230,6 +235,49 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu.execute(a2d_insert_str)
         self.cx.commit()
         return bms_id
+
+    def get_ah_total(self):
+        '''Returns the most recent ah_total from amp_hrs db table. function 334.'''
+        #TODO: find Chat's suggestion to get latest ah_total from amp_hrs table:ORDER BY ID DESC LIMIT 1
+        app_id = self.app_id
+        version = self.version
+        select_str = "select ah_total from AMP_HRS WHERE APP_ID = app_id and VERSION = version ORDER BY ID DESC LIMIT 1; "
+        cu = self.get_cursor()
+        res = cu.execute(select_str)
+        return res.fetchone()
+ 
+    def save_amp_hrs(self, dict):
+        '''Gets the latest ah_total from amp_hrs table, then adds ah_used and saves updated tuple to amp_hrs table.'''
+        prev_ah_total = self.get_ah_total()[0]
+        AH_USED = float(dict["AH_USED"])
+        dict["AH_TOTAL"] = prev_ah_total + AH_USED
+        app_id=self.app_id
+        version = self.version
+        dict["APP_ID"] = self.app_id
+        dict["VERSION"] = self.version
+        cols, vals = self._create_cols_vals(dict, AMP_HRS_FIELDS)
+        ins_str = f"insert into AMP_HRS  {tuple(cols)} values {tuple(vals)}; "
+        print("ins_str: ", ins_str)
+        cu = self.get_cursor()
+        cu.execute(ins_str)
+
+
+    def get_last_amp_hrs(self):
+        '''Selects the last record saved in AMP_HRS table.'''
+        version= self.version
+        app_id=self.app_id
+        AMP_HRS_ROW = namedtuple("AMP_HRS_ROW", (AMP_HRS_FIELDS))
+        select_str = "select * from AMP_HRS where APP_ID = app_id and VERSION = version ORDER BY ID DESC LIMIT 1;"
+        cu=self.get_cursor()
+        res = cu.execute(select_str)
+        return AMP_HRS_ROW(*res.fetchone())
+
+    def delete_test_amp_hrs(self):
+        '''This deletes any records from AMP_HRS that has MEAC_ID= 99999.'''
+        delete_str = "delete from AMP_HRS where MEAS_ID = 99999;"
+        cu = self.get_cursor()
+        cu.execute(delete_str)
+
 
     def list_bms(self, chan, atype):
         ''' Returns a list<records> of type atype.'''
