@@ -1,7 +1,7 @@
 # file: adc_asyncio_client.py
 
 from common.bms_config import APP_ID, VERSION
-from common.templates.adc_templates import ADC_TO_SVR_TEMPLATE
+from adc_cfg import ADC_TO_SVR_TEMPLATE
 import asyncio
 import json
 from machine import RTC
@@ -15,27 +15,65 @@ import math
 # print("SVR_PORT: ", bms_config.SVR_PORT)
 # print("VINS: ", bms_config.VINS)
 
+adc
+ahmeter
+
+async def tcp_client():
+    global adc, ahmeter
+    print(f"Starting tcp_client with svr_ip: {bms_config.SVR_IP} , svr_port: {bms_config.SVR_PORT} ")
+    reader, writer = await asyncio.open_connection( bms_config.SVR_IP, bms_config.SVR_PORT)
+
+    #1. send a hello msg to introduce me to the server
+    hello = { "SENDER":"ADC", "CODE":0 }
+    send(hello, writer)
+
+    #2.request time_sync
+    print("Requesting time_sync from SVR...")
+    time_sync = {"SENDER":"ADC", "CODE":302, "ARGLIST": [], "MSGID": 0}
+    send(time_sync, writer)
+
+    #3.request max meas_id in bms table
+    max_meas_id = {"SENDER":"ADC", "CODE": 304, "ARGLIST": []}
+    send(max_meas_id, writer) 
+
+    #4.request config info
+    cfg_rqst  = {"SENDER":"ADC", "RECEIVER": "SVR", "CODE": 310, "ARGLIST":[]}
+    send(cfg_rqst, writer) 
+
+    while True:
+        print("ADC waiting for server message")
+        line = await reader.readline()   # blocks until reads a "\n"
+        #print("ADC raw line:", repr(line))
+        msg=json.loads(line.decode())
+        print("\tADC decoded msg:", msg)
+        #print(f"writer: {writer}  msg: {msg}")
+        if not isinstance(msg, dict):
+            print("Ignoring non-command message:", msg)
+            continue
+        await route_msg(msg, writer)
+
+
+async def send(msg:dict, writer):
+    '''adc_asyncio_client sends all msgs from adc objects . Precondition: msg contains all required fields. No changing once you get here.'''
+    respj = json.dumps(msg) + "\n"
+    writer.write(respj.encode())
+    await writer.drain()
+    return True
+
 
 # Create the two global instances that will obey adc_asyncio_client
-adc = ADC(APP_ID,VERSION)
-ahmeter=AhMeter(vtap, lsb, rs, amp_gain )     # created here, used in every voltage measurment cycle.
+adc     = ADC(APP_ID,VERSION)
+ahmeter = AhMeter(vtap, lsb, rs, amp_gain )     # created here, used in every voltage measurment cycle.
 reps=0
 reps_done=0
 period =0
 rtc=RTC()
 
-async def send(msg:dict, writer):
-    '''adc_asyncio_client sends all msgs from adc objects . Precondition: msg contains all required fields. No changing once you get here.'''
-    respj = json.dumps(msg) +"\n"
-    writer.write(respj.encode())
-    await writer.drain()
-    return True
-
 async def start_periodic_current_measurements(msg: dict):
     '''Setup the periodic current measurements from the battery's highest Vtap (cfg.PACK_VOLTS). 
-       global adc, ahmeter
        Measurments will reset and restart accumulating right after a voltage_report is sent to the SVR...
        The assumption is made that amp_measurments will be made many times during a volt_meas_period so reps is not used...'''
+    global adc, ahmeter
     vtap = msg["VTAP"]
     amps_chan = 3         # All current measurements will be saved in chan[3] part of RAM using cfg.ADC_AMPS_FSR (1.024) V.
     fsr = msg["ADC_AMPS_FSR"]
@@ -94,10 +132,11 @@ async def single_voltage_measurement(msg:dict, ah_meter, writer):
 async def prepare_and_send_report(writer):        
     '''Deep copies the ADC_T0_SVR_TEMPLATE as report_msg.  ah_meter and adc populates their parts of report_msg,then calls send(...) and returns boolean.'''
     global adc, ahmeter
-    report_msg = deepcopy(ADC_T0_SVR_TEMPLATE)
-    await  ah_meter.report_to_svr(report_msg)    
-    await adc.report_to_svr(report_msg, msgId, vins)    # adc will create next meas_id when creating the report.
-    return send(adc_report, writer) 
+    report_msg = deepcopy(ADC_TO_SVR_TEMPLATE)
+    ah_meter.build_report_to_svr(report_msg)    
+    adc.build_report_to_svr(report_msg, msgId, vins)    # adc will create next meas_id when creating the report.
+    print("adc_report_to_svr: ", report_msg) # Is it all there and is it correct?
+    return await send(report_msg, writer) 
 
 
 async def route_msg( msg, writer):
@@ -131,36 +170,18 @@ async def route_msg( msg, writer):
         # set the starting meas_id on the adc. It will autoincrement by 1 thereafter.
         print(f"msg: {msg}")
         adc.meas_id = msg["MEAS_ID"]
+
+    elif cmd == 311:
+        print(f"msg: {msg}")
+        # ADC_VOLT_FSR │ ADC_AMPS_FSR  |  ADC_VOLT_MEAS_PERIOD │ ADC_AMP_MEAS_PERIOD │ PACK_VOLTS │    RS    │ AMP_GAIN 
+        volt_fsr = msg["ADC_VOLT_FSR']
+        amp_fsr  = msg["ADC_AMPS_FSR"] 
+        volt_meas_period = msg["ADC_VOLT_MEAS_PERIOD"]
+        amp_meas_period = msg["ADC_AMP_MEAS_PERIOD"]
+        vtap = msg["PACK_VOLTS"]
+        rs = msg["RS"]
+        amp_gain = msg["AMP_GAIN"]
         
-async def tcp_client():
-    global adc, ahmeter
-    print(f"Starting tcp_client with svr_ip: {bms_config.SVR_IP} , svr_port: {bms_config.SVR_PORT} ")
-    reader, writer = await asyncio.open_connection( bms_config.SVR_IP, bms_config.SVR_PORT)
-
-    #1. send a hello msg to introduce me to the server
-    hello = { "SENDER":"ADC", "CODE":0 }
-    send(hello, writer)
-
-    #2.request time_sync
-    print("Requesting time_sync from SVR...")
-    time_sync = {"SENDER":"ADC", "CODE":302, "ARGLIST": [], "MSGID": 0}
-    send(time_sync, writer)
-
-    #3.request max meas_id in bms table
-    max_meas_id = {"SENDER":"ADC", "CODE": 304, "ARGLIST": []}
-    send(max_meas_id, writer) 
-
-    while True:
-        print("ADC waiting for server message")
-        line = await reader.readline()   # blocks until reads a "\n"
-        #print("ADC raw line:", repr(line))
-        msg=json.loads(line.decode())
-        print("\tADC decoded msg:", msg)
-        #print(f"writer: {writer}  msg: {msg}")
-        if not isinstance(msg, dict):
-            print("Ignoring non-command message:", msg)
-            continue
-        await route_msg(msg, writer)
         
  
     #TODO 2: ask chatgpt how to place following two lines.  For now, just comment them out...
