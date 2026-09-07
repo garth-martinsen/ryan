@@ -5,11 +5,10 @@
 # Goal2: Add code to measure current. calls same method: adc.measure(chan) but chan = 3 of [0,1,2,3]and adc uses FSR=1.024V
 # Goal3: Add new code to synchronize time from SVR.
 
-import asyncio
 from collections import OrderedDict
 import  time #  import ticks_us, ticks_diff, ticks_ms, localtime, time
 from common.bms_config import APP_ID, VERSION
-from common.templates.adc_templates import ADC_T0_SVR_TEMPLATE
+# from common.templates.adc_templates import ADC_T0_SVR_TEMPLATE
 from copy import deepcopy
 import math
 import json
@@ -26,6 +25,7 @@ from adc_cfg import (
     Stats,
     measurements,
     allPins,
+    ADC_T0_SVR_TEMPLATE
 )
 
 #i2c and ads
@@ -34,12 +34,12 @@ ads=ADS1115(i2c, ADC_ADDRESS, ADC_GAIN)    # ADC sampler
 cnt=0
 try:
     class ADC:
-        '''This module monitors 3 circuits (4V, 8V, 12V , which are chans[0,1,2]). To Sample a circuit, set appropriate adc_gain ,
+        '''This module monitors 3 voltage circuits (4V, 8V, 12V , which are chans[0,1,2]). To Sample a circuit, set appropriate adc_gain ,
     monitor irq pin for alert signal. At ea alert signal , the irq method stores a2d count and ticks_us until _BUFFERSIZE
     samples are stored.  This results in two arrays per channel stored in ESP flash memory:  a2d and uclicks. RAM memory will
     hold data for all three channels.
-    The ADC can receive 2 types of message: Set up Periodic ( code: 175), Measure on Chan (code:100 or 200).
-    The measurement cmd can be of two types: calibrate (code=200, vin is not 0) and plain measure (code=100, vin=0).
+    The ADC can receive 2 types of message: Set up Periodic ( code: 175, 275), Measure on Chan (code:100 or 200).
+    The measurement cmd can be of two types: calibrate (code=200, vin is not 0) and plain measure (code=100, vin=None).
     The msg id from the requesting msg is put back into the response msg, the return code =rqst.code+1.
     '''
 
@@ -115,7 +115,7 @@ try:
                 uclicks[self.index_put] = ticks_us()
                 self.index_put += 1
 
-        async def measure(self, ch):
+        def measure(self, ch):
             """Prepares circuits[ch] to measure voltage at the sample point.
             Vin is not needed for a measurement. Its value gets added in report_to_svr(...) when needed for calibration"""
             global cnt
@@ -139,7 +139,7 @@ try:
             #print(f"Done...A2D samples will be found in self.measurements[{ch}].a2d")
             # measurements are stored in measurements arrays They will be loaded from there into the server_report...
 
-        async def report_to_svr(self, server_report, msgid, vins, code):
+        def build_report_to_svr(self, server_report, msgid, vins, code):
             self.reporting =1
             name = self.names[int(chan)]
             # report depends on the code: set_up, measure or calibrate
@@ -156,8 +156,8 @@ try:
                 chan["TIMESTAMP"]=self.timestamps[ch]
                 if code == 200:
                     chan["VIN"] = vins[ch] 
-            # Policy:  the json.dumps  and add "\n" are always done by the adc_asyncio_client.py. So this function returns a dict
-            # return server_report   #assuming that updating server_report in this method changes it in the adc_asyncio_client.
+            # Policy:  the json.dumps  and add "\n" are always done by the adc_asyncio_client.py before a send.
+            # So this function returns a dict when called by adc_asyncio_client.
          
  
 except Exception  as e:
@@ -165,12 +165,5 @@ except Exception  as e:
     print("file: " , e.__traceback__.tb_frame.f_code.co_filename)
     print("line no: " , e.__traceback__.tb_lineno)
 
-#uncomment the 4 lines below to run adc.py in isolation    
-    
-async def main():
-      adc=ADC(APP_ID, VERSION)  
-       
-asyncio.run(main())    
-    
 #==========delete below this line ==== 
 
