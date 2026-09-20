@@ -3,22 +3,22 @@
 import time
 from collections import OrderedDict
 #from typing import List, Integer
-from common.templates.adc_templates import ADC_T0_SVR_TEMPLATE
+from common.templates.adc_templates import ADC_TO_SVR_TEMPLATE
 
 class AhMeter:
     '''Inits as commissioned with LSB, Vtap, a2d, rs,amp_gain  . 
        Starts voltage measurement interval with input_time, sets count=0, and accumulates & counts current measurements until 
        adc_client asks for ah_used, responds by multiplying average current by delta_time to return ah_used.''' 
 
-    def __init__(self, vtap, lsb, rs, amp_gain ):
+    def __init__(self, vtap, lsb, rs, amp_gain, a2d ):
         self.start_time=0.0    # start_time passed in on start(),  end_time is passed in when adc_client asks for ah_used.
         self.amp_sum = 0.0     # accumulates periodic measurements until ah_used(..) is called.
         self.vtap = vtap       # indicates nominal voltage at which ah_used is needed. 12.6V is used for 3Cells in series. Just for show.
         self.count=0           # number of amps measurements added to amp_sum during accumulation phase.
         self.a2d = a2d         # reference to the a2d array stored by the adc on chan[3], for amps.
-        self.lsb =LSB          # for FSR=1.024v and steps =2**15 ; lsb = FSR/steps, 1.024/32768 = 0.00003125 or 31.25µV
+        self.lsb =lsb          # for FSR=1.024v and steps =2**15 ; lsb = FSR/steps, 1.024/32768 = 0.00003125 or 31.25µV
         self.rs = rs           # Measured shunt resistor value in ohms
-        self.amp_gain          # Gain from INA180A1 current sense amplifier eg: 20
+        self.amp_gain = amp_gain         # Gain from INA180A1 current sense amplifier eg: 20
         self.pdict = OrderedDict() # Processing dict
 
     def start(self, start_time:float):
@@ -73,8 +73,4 @@ class AhMeter:
         amps_record["AH_USED"]   = self.ah_used()  
         
 #===================
-# tests found in tests/test_ah_meter.py
-'''
-amp_record:  {"TIMESTAMP": 178000.0, "I_MEAN":0.550,"PERIOD_SEC":3600, "AH_USED":0.550 }
-'''
 

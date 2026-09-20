@@ -10,8 +10,8 @@ from common.bms_config import APP_ID, VERSION
 import time
 import datetime
 import json
-from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, AMP_HRS_FIELDS,
- Stats, funct_desc
+from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, AMP_HRS_FIELDS,\
+ Stats, funct_desc, GPS_FIELDS
 
 from collections import OrderedDict, namedtuple
 import re
@@ -47,44 +47,39 @@ class DatabaseInterface:
         self.slope=[1.33289430358907,2.98747763864043,3.99304865938431 ]
         self.intercepts= [0.024164327787965,0.0498818752307106,0.0641294273419395 ]
         self.msg = ""
-        self.funct_dict = self.create_function_dict()
         self.funct_desc = funct_desc
 
-    #TODO 4: create command for gui to set adc_measurement parms...The 10 should get all app_config attrs including measurement ones. 12 should save
+    #TODO 5: change all calls to func_dict to go to svr_task_manager.handlers_dict ~ line 50 and delete following dict from dbi.
 
-    def create_function_dict(self):
-            funct_dict  = dict()
-#            funct_dict[0]= self.client_register_with_server                      # ( [] )
-#            funct_dict[2]= self.request_time_sync                                # ( [] )
-            funct_dict[4]= self.get_max_meas_id                                  # ( [] )
-            funct_dict[10]= self.get_app_config                                  # ( )
-            funct_dict[12]= self.save_app_config                                 # ( [cfg_id, msg:Config] )
-            funct_dict[20]= self.get_chan_config                                 # ( [chan] )
-#            funct_dict[22]= self.save_chan_config                                # ( [chan] )
-#            funct_dict[30]= self.get_measurement                                 # ( [] )
-#            funct_dict[32]= self.start_periodic_voltage_measurements             # ( [period, reps] )
-#            funct_dict[40]= self.calibrate                                       # ( [ [vin0,vin1,vin2] ] )
-#            funct_dict[42]= self.start_periodic_calibrations                     # ( [ period, reps, [vin0,vin1,vin2] ] )
-            funct_dict[50]= self.save_to_bms                                     # ([ bms: BMS ])
-            funct_dict[52]= self.list_bms                                        # ([ chan, type])
-            funct_dict[54]= self.get_bms_a2d_samples                             # ([ bms_id])
-            funct_dict[60]= self.get_ah_total                                    # ( [ ] )
-            funct_dict[62]= self.save_amp_hrs                                    # ( [ ] )
-            funct_dict[62]= self.get_last_amp_hrs                                # ( [ ] )
-            funct_dict[66]= self.delete_test_amp_hrs                             # ( [ ] )
-            funct_dict[70]= self.get_lut                                         # ( [chan] )
-            funct_dict[72]= self.get_lut_item                                    # ( [chan, vin] )
-            funct_dict[74]= self.update_lut_pair                                 # ([  _id,  vm,  vin] )    
-            funct_dict[76]= self.get_lut_timestamp                               # ([ chan ])
-            funct_dict[78]= self.update_lut_timestamp                            # ([  _id,  vm,  vin] )
-            funct_dict[80]= self.get_estimator_parms                             #([])
-            funct_dict[82]= self.update_estimator_parms                          #([])
-            funct_dict[90]= self.save_GPS_Output                                 #([?])
-            return funct_dict
-            
-    def call_function( self, code, argslist):
-        print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
-        return self.funct_dict[code]( *argslist )
+    def get_GPS_Output(self, time, date):
+        ''' Fetches GPS data for the given date and time'''
+        cu = self.get_cursor()
+        select_str = f"SELECT * FROM GPS WHERE DATE={date} and UTC={time}; "
+        res = cu.execute(select_str)
+        return res.fetchone()
+
+    def save_GPS_output(self, gps_data):
+        '''Inserts new GPS data into the GPS table'''
+        cu = self.get_cursor()
+        cols, vals = self._create_cols_vals(gps_data, GPS_FIELDS)
+        ins_str = f"INSERT INTO GPS {tuple(cols)} values {tuple(vals)};" 
+        cu.execute(ins_str)
+
+    def update_chan_config(self, msg):
+        '''Updates a channel record in CHANNELS table.'''
+        cu = self.get_cursor()
+        chan = msg["CHAN"]
+        cols, vals = self._create_cols_vals(msg, CHAN_CONFIG_FIELDS)
+        update_str = "update CHANNELS {tuple(cols)} values {tuple(vals)}    where CHAN = chan ;"
+
+    def save_GPS_Output(self,):
+        '''Persists GPS values to GPS table'''
+        
+
+    def update_estimator_parms(self, chan, cols, vals):
+        cu = self.get_cursor()
+        update_str = f"UPDATE CHANNELS SET {tuple(cols)} = values {tuple(vals)} where chan= {chan}"
+        cu.execute(update_str)
 
     def get_max_meas_id(self ):
         '''Selects the max(meas_id) from bms table and return it to adc to set its meas_id on startup. '''
@@ -145,21 +140,22 @@ class DatabaseInterface:
 #         return Config(*row)
 
 
-    def _create_cols_vals(self, msg):
+    def _create_cols_vals(self, msg,table_fields):
         '''Filters out fields not in BMS schema,
          Returns two synchronized lists with column names (cols) and values (vals) to facilitate inserts into db.
-         BMS_FIELDS in database_interface_config.py must be kept current!!!'''
+         BMS_FIELDS & AMP_HRS_FIELDS  in database_interface_config.py must be kept current!!!'''
         cols=[]
         vals=[]
         if "ID" in msg:
             msg.pop("ID")
         rejects=[]
         for k,v in msg.items():
-            if k in BMS_FIELDS:
+            if k in table_fields :
                 cols.append(k)
                 vals.append(v)
             else:
                 rejects.append(k)
+        print("cols, vals for db insert: ", cols,vals)
         print(" create cols_vals rejected columns: ", rejects)
         return (cols, vals)
 
@@ -185,9 +181,8 @@ class DatabaseInterface:
     def get_app_config(self):
         '''For each app, there will be exactly one app_config record'''
         cu =self.get_cursor()
-        select_str = f"SELECT * FROM Apps where  version = {self.version};"
+        select_str = f"SELECT * FROM Apps where ID = {self.app_id} and  version = {self.version};"
         #print("select_str: ", select_str)
-        # Each row is a channel.
         res = cu.execute(select_str)
         return res.fetchone()
     
@@ -213,8 +208,8 @@ class DatabaseInterface:
         return est_parms
 
 
-    #TODO 3 : Implement save_app_config(...) 
-    def save_app_config(self,  msg:Config):
+    #TODO 3 : Implement update_app_config(...) 
+    def update_app_config(self,  msg:Config):
         '''TBD... used to persist with new values... version update '''
         pass
 
@@ -232,9 +227,9 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         chan = msg["CHAN"]
         vin = msg["VIN"]
         # filters out msg fields not in BMS. Also remove "ID" so that db puts in next ID.
-        cols, vals = self._create_cols_vals(msg)      
+        cols, vals = self._create_cols_vals(msg,  BMS_FIELDS)      
          
-        print(f"called dbi. save_measurement() with cols: {cols[1:]} values: {vals[1:]} ")
+        print(f"called dbi.save_measurement() with cols: {cols[1:]} values: {vals[1:]} ")
         bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "   
         cu = self.get_cursor()
         cu.execute(bms_insert_str)

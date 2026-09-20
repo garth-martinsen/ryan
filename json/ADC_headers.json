@@ -1,0 +1,15 @@
+{ "SENDER":"ADC",
+  "RECEIVER":"SVR",
+  "APP_ID":1,
+  "VERSION":3,
+  "MSGID": 123,
+  "MEAS_ID":1,
+  "TYPE":"m",
+ "CHANS":[ 
+               {"TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "DISCARD_SZ": 1 , "KEEP_SZ":63 , "A2D":[24500,24500]}, 
+               {"TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "DISCARD_SZ": 1 , "KEEP_SZ":63 , "A2D":[24500,24500]},
+               {"TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "DISCARD_SZ": 1 , "KEEP_SZ":63 , "A2D":[24500,24500]},
+               {"TIMESTAMP": 178000.0, "I_MEAN":0.550,"PERIOD_SEC":3600, "AH_USED":0.550 },
+            ]
+
+}

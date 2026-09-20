@@ -8,7 +8,7 @@ from common.models.voltage_row import VoltageRow
 from dataclasses import asdict
 from .database_interface import DatabaseInterface
 import json
-from .database_interface_config import APP_CONFIG, BMS
+from .database_interface_config import APP_CONFIG, BMS, GPS_FIELDS
 import math
 
 class SvrTaskManager:
@@ -40,16 +40,119 @@ class SvrTaskManager:
         self.get_app_config()
         for chan in range(3):
             self.get_chan_config(chan)
-        self.load_functions_dict()
+        self.load_handlers_dict()
 
-    def load_functions_dict(self):
-        functions_dict  = dict()
-        self.functions_dict = functions_dict
+    # TODO 4: Augment handlers_dict with code+1 msgs coming into svr...
+
+    def load_handlers_dict(self):
+        handlers_dict    = dict()
+        # handlers_dict[0] = self.client_register_with_server                      # ( [] )   # handled by bms_asyncio_svr...
+        handlers_dict[2] = self.request_time_sync                                # ( [] )
+        handlers_dict[4] = self.dbi.get_max_meas_id                              # ( [] )
+        handlers_dict[10]= self.dbi.get_app_config                              # ( )
+        handlers_dict[12]= self.dbi.update_app_config                             # ( [cfg_id, msg:Config] )
+        handlers_dict[20]= self.dbi.get_chan_config                             # ( [chan] )
+        handlers_dict[22]= self.dbi.update_chan_config                            # ( [chan] )
+        handlers_dict[30]= self.forward_to_ADC                                  # ( [msg, clients] )
+        handlers_dict[31]= self.process_adc_measurement_report                  # ( [measurement_report] )
+        handlers_dict[32]= self.start_periodic_voltage_measurements             # ( [period, reps] )
+        handlers_dict[40]= self.forward_to_ADC                                  # ( [msg, clients] )
+        handlers_dict[41]= self.process_adc_measurement_report                  # ( [measurement_report ] )
+        handlers_dict[42]= self.start_periodic_calibrations                     # ( [ period, reps, [vin0,vin1,vin2] ] )
+        handlers_dict[50]= self.dbi.save_to_bms                                 # ([ bms: BMS ])
+        handlers_dict[52]= self.dbi.list_bms                                    # ([ chan, type])
+        handlers_dict[54]= self.dbi.get_bms_a2d_samples                         # ([ bms_id])
+        handlers_dict[60]= self.dbi.get_ah_total                                # ( [ ] )
+        handlers_dict[62]= self.dbi.save_amp_hrs                                # ( [ ] )
+        handlers_dict[62]= self.dbi.get_last_amp_hrs                            # ( [ ] )
+        handlers_dict[66]= self.dbi.delete_test_amp_hrs                         # ( [ ] )
+        handlers_dict[70]= self.dbi.get_lut                                     # ( [chan] )
+        handlers_dict[72]= self.dbi.get_lut_item                                # ( [chan, vin] )
+        handlers_dict[74]= self.dbi.update_lut_pair                             # ([  _id,  vm,  vin] )    
+        handlers_dict[76]= self.dbi.get_lut_timestamp                           # ([ chan ])
+        handlers_dict[78]= self.dbi.update_lut_timestamp                        # ([  _id,  vm,  vin] )
+        handlers_dict[80]= self.dbi.get_estimator_parms                         # ([])
+        handlers_dict[82]= self.dbi.update_estimator_parms                      # ([])
+        handlers_dict[90]= self.dbi.save_GPS_output                             # ([?])
+        handlers_dict[90]= self.dbi.get_GPS_Output                              # ([?])
+        self.handlers_dict=handlers_dict
+
+    def call_function( self, code, argslist):
+        print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
+        return self.handlers_dict[code]( *argslist )
+
+    def save_GPS_output(self, code, argslist):
+        '''Calls DBI to save GPS output'''
+        self.dbi.save_GPS_output( argslist)
+
+    def request_time_sync(self):
+        '''Returns a timestamp that clients can use to synchronize their timers...'''
+        return time.localtime()
+
+    def start_periodic_voltage_measurements(self, code, arglist):
+        '''Just forward msg to ADC...'''
+        self.forward_to_ADC(code, arglist)
+
+    def start_periodic_calibrations (self, code, argslist):
+        '''Just forward msg to ADC...'''
+        self.forward_to_ADC(code, arglist)
+
+    def update_estimator_parms(self, code, argslist):
+        '''Calls dbi to update slope and intercept.'''
+        self.dbi.update_estimator_parms(code, argslist)
+ 
+    async def forward_to_ADC(self, code, argslist):
+        '''Adds msgid, sends to ADC client, acks Gui...'''
+        #TODO 6: Move msgid from bms_asyncio_svr to here...
+        clients = argslist["clients"]
+        msg=argslist["msg"]
+        if "msg"["SENDER"]=="GUI" and msg["RECEIVER"] == "ADC":
+            msgid = self.dbi.next_msgid()
+            msg["MSGID"]=msgid
+            #print(f" msgid stamped msg: {msg}")
+        await self.send_to_client("ADC", msg, clients)
+        gui_ack = {"CODE": code, "SENDER":"SVR", "RECEIVER":"GUI","STATUS":"YOUR MESSAGE WAS FORWARDED TO ADC","MSGID":msg["MSGID"]}
+        await self.send_to_client("GUI", gui_ack, clients)
+
+    async def process_adc_measurement_report(self, msg):
+        '''Tests for Reportability. Removes outliers from a2d list to get KEEP, computes mean and sd of KEEP, 
+        Computes/looks up estimated battery voltage, vb. Computes error if vin is available. 
+        Persists in BMS, A2D, AMP_HRS tables. Formats for GUI presentation, Sends to GUI.'''
+
+        reportable= self.test_reportability(msg)
+        stats_result_dict = self.compute_stats(msg)
+        meas_id = msg["MEAS_ID"]
+        print(f"result type {type(stats_result_dict)}  stats_result_dict: {stats_result_dict}")
+        # TODO 3: FINISH 101 201 ... format for needed cols for BMS table pass in correct arglist...
+        #("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
+        bms_dict_to_store = {"ID" : "", "MSGID":msg["MSGID"], "VERSION": msg["VERSION"],
+                               "TIMESTAMP": msg["TIMESTAMP"], "MEAS_ID": meas_id, "TYPE" : msg["TYPE"], "CHAN" : msg["CHAN"], 
+                               "A2D_MEAN" : stats_result_dict["A2D_MEAN"], "VM_MEAN" : stats_result_dict["VM_MEAN"], 
+                               "VM_SD" :stats_result_dict["VM_SD"], "VB" :stats_result_dict["VB"],
+                               "VIN" : msg["VIN"], "ERROR" :stats_result_dict["ERROR"], "SAMP_SZ" : msg["SAMP_SZ"],
+                               "DISCARD_SZ" : stats_result_dict["DISCARD_SZ"], "KEEP_SZ" : stats_result_dict["KEEP_SZ"],
+                               "A2D" : msg["A2D"]}
+        print(f"bms_dict_to_store for  BMS table: type: {type(bms_dict_to_store)} msg: { [bms_dict_to_store]} ")
+        bms_id = self.dbi.save_to_bms( bms_dict_to_store  )
+        lst = self.measurements.get(meas_id, [])
+        lst.append(VoltageRow(bms_id, timestamp, _type, chan, vb, ))
+        self.measurements[meas_id]= lst
+        if measurement[meas_id]: 
+            rows = [
+            VoltageRow(...),
+            VoltageRow(...),
+            VoltageRow(...),
+            ]
+        bms_dict_to_store["ID"]=bms_id
+        bms_dict_to_store.pop("A2D")
+        # Send the formatted msg to the GUI
+        await self.send_to_client("GUI", bms_dict_to_store, clients)
 
     def get_app_config(self):
         cfg = self.dbi.get_app_config()
         app_config = APP_CONFIG(*cfg)
-        FSR=app_config.ADC_FSR
+        print(f"app_config: {app_config}")
+        FSR=app_config.ADC_VOLT_FSR
         STEPS = app_config.ADC_STEPS
         self.lsb = FSR/STEPS
 
@@ -84,7 +187,7 @@ class SvrTaskManager:
         print(f"\tMessage sent to {name} : {msgj}")
 
     async def adc_calibrate(self):
-        '''Sends msg from GUI_client, along with MSGID to ADC_client. msg includes: vin, type='c', chan'''
+        '''Sends msg from GUI_client, along with MSGID to ADC_client. msg includes: vins, type='c', chan'''
         await self.send_to_client("ADC", msg, clients)
 
     async def adc_measure(self):
@@ -103,6 +206,8 @@ class SvrTaskManager:
         vb_predicted = self.predict_vb(vb)
         return abs(vb_predicted - vb) < self.allowance
 
+    #TODO 3: Replace if code in ... with self.call_function(self, code, arglist)...
+
     async def create_and_schedule_tasks (self, loop, msg, clients ):
         '''Based on receiver, sender and code fields, route msg to a method where it can be processed.
           The tasks will be to perform async methods including send_to_client(...) '''
@@ -110,45 +215,12 @@ class SvrTaskManager:
         try:
             print(f"msg: {msg}")
             code = int(msg["CODE"])
+            argslist = msg["ARGLIST"]
             print("reached : hw1")       
-            # for codes: 100,174,200 ,msg,with embedded msigid is forwarded to the ADC_client .
-            if code in [100,174,200, 274]:
-                await self.send_to_client("ADC", msg, clients)
-                response = {"CODE": code, "SENDER":"SVR", "RECEIVER":"GUI","STATUS":"YOUR MESSAGE WAS FORWARDED TO ADC","MSGID":msg["MSGID"]}
-                await self.send_to_client("GUI", response, clients)
-            if code in [101,201]:
-                # TODO: Test chan measurement for reportability...
-                reportable= self.test_reportability(msg)
-                stats_result_dict = self.compute_stats(msg)
-                meas_id = msg["MEAS_ID"]                
-                print(f"result type {type(stats_result_dict)}  stats_result_dict: {stats_result_dict}")
-                # TODO 3: FINISH 101 201 ... format for needed cols for BMS table pass in correct arglist...
-                 #("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ")
-                store_to_bms_dict= {"ID" : "", "MSGID":msg["MSGID"], "VERSION": msg["VERSION"], 
-                "TIMESTAMP": msg["TIMESTAMP"], "MEAS_ID": meas_id, "TYPE" : msg["TYPE"], 
-                "CHAN" : msg["CHAN"], "A2D_MEAN" : stats_result_dict["A2D_MEAN"],
-                                     "VM_MEAN" : stats_result_dict["VM_MEAN"], "VM_SD" :stats_result_dict["VM_SD"], "VB" :stats_result_dict["VB"],
-                                     "VIN" : msg["VIN"], "ERROR" :stats_result_dict["ERROR"], "SAMP_SZ" : msg["SAMP_SZ"],
-                                     "DISCARD_SZ" : stats_result_dict["DISCARD_SZ"], "KEEP_SZ" : stats_result_dict["KEEP_SZ"],
-                                     "A2D" : msg["A2D"]}
-                print(f"store_to_bms_dict for  BMS table: type: {type(store_to_bms_dict)} msg: { [store_to_bms_dict]} ")
-                bms_id = self.dbi.save_to_bms( store_to_bms_dict  )
-                # store to self.measurements under meas_id. When chan 2 is complete, check set reportability.
-                # if set is reportable, send rows to to GUI client.
-                lst = self.measurements.get(meas_id, [])
-                lst.append(VoltageRow(bms_id, timestamp, _type, chan, vb, ))
-                self.measurements[meas_id]= lst
-                if measurement[meas_id]:  
-                    rows = [
-                    VoltageRow(...),
-                    VoltageRow(...),
-                    VoltageRow(...),
-                    ]
-                store_to_bms_dict["ID"]=bms_id
-                store_to_bms_dict.pop("A2D")
-                await self.send_to_client("GUI", store_to_bms_dict, clients)
+            self.call_function(code, argslist)
+
                 
-              # all of the even codes > 300 will be tasked to the dbi and returned to the gui_client with code=code+1.
+              # all of the even codes > 300 from GUI will be tasked to the dbi and returned to the gui_client with code=code+1.
             if code > 300 and code%2 == 0:
                 print(f"Request msg: { msg}")
                 arglist=msg["ARGLIST"]
@@ -232,12 +304,16 @@ class SvrTaskManager:
 
     def lookup_chan_vm(self,  chan:int, vm:float):
         '''Given any legitimate value for vm (measured voltage) in a channel, chan,
-          Returns the estimate of  vb (battery voltage), using interpolation.
-          First  if vm is right on a boundary key, returns lut[boundary_key], then
-          if vm is out of bounds, prints error statement and returns None,
-          else interpolates vm to yield vb '''
-        vm, lut  = self.matchesboundary(chan, vm, self.version)
-        if vm == None:
+           Returns the estimate of  vb (battery voltage), using interpolation.
+           First  if vm is right on a boundary key, returns lut[boundary_key], then
+           if vm is out of bounds, prints error statement and returns None,
+           else interpolates vm to yield vb '''
+
+        lut = self.luts[chan]
+        lo_vm = min(lut.keys())
+        hi_vm = max(lut.keys()) 
+        if vm < lo_vm or vm > hi_vm:
+            vm = None
             # vm was outside of allowable bounds... so vb is undefined...
             return None       
         #bracket vm by lut keys
@@ -250,7 +326,6 @@ class SvrTaskManager:
                 break
             else:
                 vlo = k
-
         print(f"\tvlo: {vlo}, vm: {vm}, vhi: {vhi}")
 
         # --- Interpolation ---
@@ -266,31 +341,3 @@ class SvrTaskManager:
          '''Returns the mean of a list of values. Used for simple mean and also variances)'''
          return sum(alist)/len(alist)
     
-    def matchesboundary(self, chan:int, vm:float, version:int) :
-        '''Returns tuple(vm, lut). Vm is None if outside of allowed boundary limits, Returns vm if vm is within tol of first or last key.'''
-     
-        lut=self.luts[chan]
-        keys = list(lut.keys())
-        minkey = keys[0]
-        maxkey = keys[-1]
-        #print(f"\t bounds for chan {chan}: {minkey}, {maxkey}")
-        vinstep = 0.1            # all luts have vin in 0.1V steps.
-        tol = vinstep/2*self.vd_fracts[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
-        #allowable vm values to set vm = minkey or maxkey depending...
-        lo_tol = minkey - tol
-        hi_tol = maxkey + tol
-        if vm < lo_tol or vm > hi_tol:
-            print( f"Error: {minkey} <= vm:{vm} <= {maxkey} violated. Returning None for vm")
-            return (None, lut)
-        else:
-            # if vm is equal to minkey or maxkey, set vm to minkey or maxkey depending
-            vmr=None
-            if  lo_tol < vm < keys[1]:
-                vmr = minkey
-            elif keys[-2] < vm < hi_tol:
-                vmr = maxkey
-            else:
-                #passed in vm is inside of lut boundaries so it can be interpolated.
-                vmr = vm
-        return (vmr, lut)
-                    

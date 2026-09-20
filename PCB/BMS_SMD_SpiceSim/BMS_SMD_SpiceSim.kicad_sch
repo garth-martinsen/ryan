@@ -1369,7 +1369,7 @@
 		)
 		(uuid "291bd68a-daab-49e5-a5cc-508d18c8b3f5")
 	)
-	(text "ADC A2D count = ~32000"
+	(text "ADC Current A2D count = ~32000"
 		(exclude_from_sim no)
 		(at 163.068 79.502 0)
 		(effects
@@ -1431,12 +1431,6 @@
 		(uuid "f7b0b31f-2d86-4ee9-89fb-17661ae3eddc")
 	)
 	(junction
-		(at 163.83 88.9)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "2936769a-b978-457f-b571-35b243c435f3")
-	)
-	(junction
 		(at 118.11 92.71)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1453,12 +1447,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "739178ab-44db-4d6b-be7f-57085318a5e5")
-	)
-	(junction
-		(at 200.66 86.36)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "75916c82-0a8c-4013-8173-fcf20c4b9c02")
 	)
 	(junction
 		(at 138.43 85.09)
@@ -1479,6 +1467,12 @@
 		(uuid "8bc8da1b-29d9-4e8a-8b24-b15d4e922f1b")
 	)
 	(junction
+		(at 203.2 86.36)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ae301c36-0982-4ca3-aad0-5d6349493282")
+	)
+	(junction
 		(at 210.82 93.98)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -1489,6 +1483,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "b9c1744f-57e5-4763-b944-3e5f49814b28")
+	)
+	(junction
+		(at 163.83 88.9)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "c4f29feb-683c-4cfc-9de7-35e82911a861")
 	)
 	(junction
 		(at 210.82 106.68)
@@ -1524,7 +1524,7 @@
 	)
 	(wire
 		(pts
-			(xy 208.28 52.07) (xy 208.28 76.2)
+			(xy 208.28 52.07) (xy 208.28 74.93)
 		)
 		(stroke
 			(width 0.508)
@@ -1534,7 +1534,7 @@
 	)
 	(wire
 		(pts
-			(xy 198.12 86.36) (xy 200.66 86.36)
+			(xy 198.12 86.36) (xy 203.2 86.36)
 		)
 		(stroke
 			(width 0.508)
@@ -1604,7 +1604,7 @@
 	)
 	(wire
 		(pts
-			(xy 200.66 83.82) (xy 200.66 86.36)
+			(xy 203.2 82.55) (xy 203.2 86.36)
 		)
 		(stroke
 			(width 0.508)
@@ -1621,16 +1621,6 @@
 			(type default)
 		)
 		(uuid "4c1bc265-8856-4616-83e6-f10d30aa45d1")
-	)
-	(wire
-		(pts
-			(xy 200.66 76.2) (xy 208.28 76.2)
-		)
-		(stroke
-			(width 0.508)
-			(type default)
-		)
-		(uuid "4e2de57c-a56b-40df-86cc-e272058ea117")
 	)
 	(wire
 		(pts
@@ -1651,16 +1641,6 @@
 			(type default)
 		)
 		(uuid "55bed0e4-74c6-470b-81c2-57f0d5ef104f")
-	)
-	(wire
-		(pts
-			(xy 200.66 86.36) (xy 205.74 86.36)
-		)
-		(stroke
-			(width 0.508)
-			(type default)
-		)
-		(uuid "5ebb4b80-b21a-41d9-871a-b777ca21ff46")
 	)
 	(wire
 		(pts
@@ -1744,6 +1724,16 @@
 	)
 	(wire
 		(pts
+			(xy 203.2 86.36) (xy 205.74 86.36)
+		)
+		(stroke
+			(width 0.508)
+			(type default)
+		)
+		(uuid "953dc56a-57e0-461e-9a29-f62a4a96a5f4")
+	)
+	(wire
+		(pts
 			(xy 162.56 87.63) (xy 163.83 88.9)
 		)
 		(stroke
@@ -1771,6 +1761,16 @@
 			(type default)
 		)
 		(uuid "b029afdd-6f4f-41c2-9889-4f8ea4c88362")
+	)
+	(wire
+		(pts
+			(xy 203.2 74.93) (xy 208.28 74.93)
+		)
+		(stroke
+			(width 0.508)
+			(type default)
+		)
+		(uuid "b31ab652-99d8-4707-af45-a6c9c0a9d020")
 	)
 	(wire
 		(pts
@@ -1893,7 +1893,7 @@
 		(uuid "5f52eb28-2b51-4ac0-91c1-82402361a6b2")
 	)
 	(label "Load"
-		(at 200.66 76.2 0)
+		(at 200.66 74.93 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -1903,7 +1903,7 @@
 		(uuid "bfabcc1f-f471-4ba9-9a8c-12740fc6aa7c")
 	)
 	(label "Load"
-		(at 200.66 76.2 0)
+		(at 200.66 74.93 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2084,7 +2084,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 200.66 80.01 180)
+		(at 203.2 78.74 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -2094,7 +2094,7 @@
 		(dnp no)
 		(uuid "1166bb5c-7dbc-4db7-8b9a-e160cbcaec73")
 		(property "Reference" "R4"
-			(at 203.2 78.7399 0)
+			(at 205.74 77.4699 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -2105,7 +2105,7 @@
 			)
 		)
 		(property "Value" "11.95"
-			(at 200.66 82.804 90)
+			(at 203.2 80.264 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -2116,7 +2116,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_1210_3225Metric_Pad1.30x2.65mm_HandSolder"
-			(at 202.438 80.01 90)
+			(at 204.978 78.74 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -2127,7 +2127,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 200.66 80.01 0)
+			(at 203.2 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -2138,7 +2138,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 200.66 80.01 0)
+			(at 203.2 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -2149,7 +2149,7 @@
 			)
 		)
 		(property "Sim.Params" ""
-			(at 200.66 80.01 0)
+			(at 203.2 78.74 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)

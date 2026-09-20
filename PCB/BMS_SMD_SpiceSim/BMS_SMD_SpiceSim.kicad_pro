@@ -485,7 +485,7 @@
         "uuid": "dad26fd7-8ac6-49cb-8133-e2d543d873e4"
       }
     ],
-    "used_designators": "MES1,E1-2,V1-3,U1-5,C1-5,#PWR1-11,BT1-4,RS1,R1-7",
+    "used_designators": "MES1,E1-2,U1-5,V1-3,C1-5,#PWR1-11,BT1-4,RS1,R1-7",
     "variants": []
   },
   "sheets": [

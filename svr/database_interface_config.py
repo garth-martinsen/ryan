@@ -4,15 +4,15 @@ from collections import namedtuple
 
 # named tuples... Where they match db table column names they will be upper case.
 # APPS: (ID, OWNER,  APP_DESC ,TIMESTAMP  , TEMPC, ADC_FSR, ADC_STEPS, ADC_SAMPLE_RATE, VERSION, VERSION_DESC) 
-APP_CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_DESC', 'TIMESTAMP',  'TEMPC', 'ADC_FSR', 'ADC_STEPS', 'ADC_SAMPLE_RATE', 'VERSION', 'VERSION_DESC')
-                                     
+APP_CONFIG_FIELDS =    ( 'ID', 'OWNER', 'APP_DESC', 'VERSION', 'VERSION_DESC','TIMESTAMP',  'TEMPC', 'ADC_VOLT_FSR','ADC_AMPS_FSR', 'ADC_STEPS','A2D_SZ','ADC_VOLT_MEAS_PERIOD','ADC_AMP_MEAS_PERIOD','PACK_VOLTS','RS', 'AMP_GAIN')
+AMP_HRS_FIELDS = ("ID", "APP_ID", "VERSION", "MEAS_ID", "TIMESTAMP", "I_MEAN", "PERIOD_SEC", "AH_USED", "AH_TOTAL")                                     
 #CHANNELS: ( ID, APP_ID, CHAN,       CHAN_DESC      , VERSION, VERSION_DESC,    TIMESTAMP    ,   C1   ,    R1   ,    R2   ,      SLOPE      , LUT_CALIBRATED,       LUT_TS      , K_FACTOR,     INTERCEPT    )
 CHAN_CONFIG_FIELDS = ( 'ID', 'APP_ID', 'CHAN', 'CHAN_DESC', 'VERSION', 'VERSION_DESC',  'TIMESTAMP',  'C1' ,'R1' , 'R2' ,  'SLOPE'  , 'LUT_CALIBRATED',  'LUT_TS'  , 'K_FACTOR' , 'INTERCEPT')
 APP_CONFIG = namedtuple( "APP_CONFIG", APP_CONFIG_FIELDS )                                                                        #19 fields
 CHAN_CONFIG= namedtuple("CHAN_CONFIG", CHAN_CONFIG_FIELDS)
 Abbrev= namedtuple( "Abbrev", ("id", "owner", "app_desc", "version_desc", "channel_id", "channel_desc"))    #6 fields
 BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "MEAS_ID", "REPORTABLE", "APP_ID")
-
+GPS_FIELDS = ("ID", "UTC", "DATE", "LATITUDE", "LONGITUDE", "ALTITUDE_METERS", "NUM_SATS", "HDOP" )
 BMS = namedtuple("BMS", BMS_FIELDS )   #19 fields 8/17/2026
 # LUTS schema: ID  | app_id | chan |   vm   | vin  | version 
 LUT =namedtuple("LUT", ("ID", "APP_ID", "VM", "VIN", "VERSION") )

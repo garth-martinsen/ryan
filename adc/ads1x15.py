@@ -22,7 +22,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-import utime as time
+
+# import utime as time  this errors out so just import time
+import time
+from micropython import const
 
 _REGISTER_MASK = const(0x03)
 _REGISTER_CONVERT = const(0x00)

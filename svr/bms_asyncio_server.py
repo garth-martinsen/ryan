@@ -16,9 +16,9 @@ ADC= namedtuple("ADC", ("RECEIVER", "SENDER", "TIMESTAMP", "MSGID", "CODE", "TYP
 DB_TO_GUI_MSG=namedtuple("DB_TO_GUI_MSG",("RECEIVER", "SENDER", "ID", "TIMESTAMP", "MSGID", "CODE", "TYPE",
                                           "CHAN","A2D_MEAN","VM_MEAN","VM_SD","VB", "VIN","ERROR",
                           "SAMP_SZ", "DISCARD_SZ","KEEP_SZ"))
-# ADC_CMDS = [100,174,200 ]
-# DB_CMDS=[300,310, 312, 314, 350, 360, 362,364,370,372,374,372,374]
-# DB_RSPNS= [311, 313,315, 361,363,365,371,373,375]
+# ADC_CMDS = [30,32,40,42]
+# DB_CMDS =  [4,10,12,20,22,50,52,54,60,62,64,66,70,72,74,76,78,80,82,90,92]
+# DB_RSPNS=  [5,11,13,21,23,51,53,55,61,63,65,67,71,73,75,77,79,81,83,91,93] 
   
 class Server:
     def __init__(self, app_id, version):
@@ -44,16 +44,11 @@ class Server:
                     data = json.loads(line.decode())
                 except json.JSONDecodeError as e:
                     print(f"Bad JSON: {e}")
-                    continue
+                    continue                    #if json is bad throw it away and wait for next \n terminated msg...
                
                 print(f"\tServer Received MSG: type: {type(data)} ,  data: {data} ")
-                # only stamp msgid on data that is going to ADC and then back to DBI... 
-                if data["SENDER"]=="GUI" and data["CODE"] in [100,174,200,274] :
-                    msgid = self.svr_task_manager.dbi.next_msgid()
-                    data["MSGID"]=msgid
-                    #print(f" msgid stamped msg: {data}")
                 code = data["CODE"]
-                # capture and store the client writers when they send code=0 ,for later use
+                # capture and store the client writers when they send code=0 ,for svr_task_manager's use
                 #print(f"type(code) : {type(code)} , value: {code}")
                 if code == 0:
                     if data["SENDER"] == "GUI" :
@@ -73,7 +68,7 @@ class Server:
                     rspj=json.dumps(svr_to_gui_msg) + "\n"
                     writer.write(rspj.encode())
                     await writer.drain()
-                else:
+                else:    # with all clients registered, handle all non-zero codes in svr_task_manager...
                     loop =asyncio.get_event_loop()
                     rspns_msg = await self.svr_task_manager.create_and_schedule_tasks(loop=loop, clients= self.clients, msg= data)
         except Exception as e:
@@ -96,4 +91,4 @@ async def main(app_id, version):
         await server.serve_forever()
     
 if __name__ == "__main__":
-    asyncio.run(main(1,3))
+    asyncio.run(main(1,3))  # change app_id and version depending on app and version being used.
