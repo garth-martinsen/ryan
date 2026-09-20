@@ -1,0 +1,99 @@
+# file: bms_asyncio_server.py   does not use websocketa... uses asyncio tcp instead. works for µpython...
+import asyncio
+from collections import namedtuple
+import json
+import math
+from common import bms_config
+import common.secrets
+from .database_interface import DatabaseInterface as DBI
+#from adc_Interface import ADC_Interface as ADCIF
+# from gui_interface import GUI_Interface as GUIIF
+from .svr_task_manager import SvrTaskManager
+
+#        BMS schema( id integer primary key, timestamp varchar, type varchar,chan integer,vin real, error real, a2d_mean integer, vm_mean real, vm_sd real, vb real);
+BMS = namedtuple("BMS",("id","timestamp","msgid", "type","chan", "a2d_mean","vm_mean","vm_sd","vb","vin","error","samp_sz", "discard_sz","keep_sz"))
+ADC= namedtuple("ADC", ("RECEIVER", "SENDER", "TIMESTAMP", "MSGID", "CODE", "TYPE","CHAN","VIN","SAMP_SZ", "SAMPLES"))
+DB_TO_GUI_MSG=namedtuple("DB_TO_GUI_MSG",("RECEIVER", "SENDER", "ID", "TIMESTAMP", "MSGID", "CODE", "TYPE",
+                                          "CHAN","A2D_MEAN","VM_MEAN","VM_SD","VB", "VIN","ERROR",
+                          "SAMP_SZ", "DISCARD_SZ","KEEP_SZ"))
+# ADC_CMDS = [100,174,200 ]
+# DB_CMDS=[300,310, 312, 314, 350, 360, 362,364,370,372,374,372,374]
+# DB_RSPNS= [311, 313,315, 361,363,365,371,373,375]
+  
+class Server:
+    def __init__(self, app_id, version):
+        self.app_id = app_id
+        self.version = version
+        self.svr_task_manager= SvrTaskManager(bms_config.APP_ID, bms_config.VERSION)
+        self.clients={}
+        print(f" self.__dict__ : {self.__dict__}")
+        
+    async def handle_client(self,reader, writer):
+        global k, vd_fracts, chan, lsb, vin
+        addr = writer.get_extra_info('peername')
+        print("Connected:", addr)
+        
+        try:
+            while True:
+                
+                line = await reader.readline()
+                if not line:
+                    print("Client disconnected")
+                    break
+                try:
+                    data = json.loads(line.decode())
+                except json.JSONDecodeError as e:
+                    print(f"Bad JSON: {e}")
+                    continue
+               
+                print(f"\tServer Received MSG: type: {type(data)} ,  data: {data} ")
+                # only stamp msgid on data that is going to ADC and then back to DBI... 
+                if data["SENDER"]=="GUI" and data["CODE"] in [100,174,200,274] :
+                    msgid = self.svr_task_manager.dbi.next_msgid()
+                    data["MSGID"]=msgid
+                    #print(f" msgid stamped msg: {data}")
+                code = data["CODE"]
+                # capture and store the client writers when they send code=0 ,for later use
+                #print(f"type(code) : {type(code)} , value: {code}")
+                if code == 0:
+                    if data["SENDER"] == "GUI" :
+                        self.clients["GUI"] = writer
+                    elif data["SENDER"] == "ADC" :
+                        self.clients["ADC"] = writer
+                    print(f"\tClients connected to this server: {len(self.clients)}")
+                    i=0;
+                    # List the clients that have registered with the svr.
+                    for k,v in self.clients.items():
+                        i+=1
+                        print(i, k, v)
+                    sender = data["SENDER"]
+                    greeting = f"{sender}"
+                    svr_to_gui_msg = {"SENDER": "SVR", "RECEIVER" : sender, "CODE" : 1, "WELCOME": greeting}  
+                    # response = f'Server says: hello {data["SENDER"]}, welcome!'
+                    rspj=json.dumps(svr_to_gui_msg) + "\n"
+                    writer.write(rspj.encode())
+                    await writer.drain()
+                else:
+                    loop =asyncio.get_event_loop()
+                    rspns_msg = await self.svr_task_manager.create_and_schedule_tasks(loop=loop, clients= self.clients, msg= data)
+        except Exception as e:
+            print("Error:", e)
+            print("file: " , e.__traceback__.tb_frame.f_code.co_filename)
+            print("line no: " , e.__traceback__.tb_lineno)
+
+        finally:
+            writer.close()
+            await writer.wait_closed()
+            print("Disconnected:", addr)
+
+async def main(app_id, version):
+    svr = Server(app_id, version)
+    server = await asyncio.start_server( svr.handle_client,
+        bms_config.SVR_IP, bms_config.SVR_PORT)
+    print(f"Server is listening at: {bms_config.SVR_IP} : {bms_config.SVR_PORT}")
+
+    async with server:
+        await server.serve_forever()
+    
+if __name__ == "__main__":
+    asyncio.run(main(1,3))

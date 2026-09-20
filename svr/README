@@ -1,0 +1,79 @@
+this is a python3  directory. it holds code for the bms_async_server
+
+The code here may be run in a host terminal with virtual environment.
+The virtual env must include sqlite3. 
+bms_async_server's purpose is to:
+  1. Translate msgs from clients: Adc_async_client and Gui_async_client setting attributes on server variables as needed.
+  2. Route cmds to the DBI (DatabaseInterface)  or one of the clients: Adc_async_client, Gui_async_client
+  3. compute summary data from Adc_clients A2D data to complete the BMS record for storage and send, 
+  4. delegate to the DBI to store the augmented BMS record to the BMS table 
+  5. delegate to the DBI to store A2D data to the A2D table managing the bms_id to ensure that A2S data maps correctly to the BMS record. 
+  6. Format msgs to return cmd responses to the Gui_async_client.
+  7. Allow connections from both clients and manage the msg traffic correctly.
+
+Voltage taps on the battery cells provides three channels: One cell, Two cells, Three cells.
+bms_async_server will compute status of each of three cells using subtraction.
+The Gui_async_client commands are listed in the table below.
+The bms_async_server maintains the msgid so that responses can be mapped back to requests.
+There may be many hosts that perform the Gui_async_client functions: mobile, desktop, laptop, etc.
+bms_async_server may need to modify msg response depending on the display
+device. TBD
+The Server receives the commands via asyncio from the Gui_asyncio_client and forwards them to Adc_async_client.
+A measurment command (100) will result in 3 measurement reports, each with voltage measurements for ( One cell , Two Cells, Three Cells)
+A calibration command(200) will be for a single channel and will contain the Truth value, called "vin" for input voltage . 
+A calibration command will result in one calibration_report(201) msg sent to the Server with "vin" embedded along with normal samples and neccesary fields.
+F
+r the Start_Periodic cmd,  Gui_async_client will pass two attributes thru the Server to the Adc_async_client, Start_Periodic.period and Start_Periodic.repetitions.
+A measurement(100) and a calibration(200) command will vary in two ways: the type ('m','c') and vin = [0, truthValue], where 'm' means measure and 'c' means calibrate.
+The time between cmd and response is estimated to be ~5 seconds.
+A small amount of time will be expended in translating incoming msgs and formatting outgoing messages.
+The bms_async_server will respond to Gui_async_client commands by delegating cmds to the DBI to update database tables as needed.
+Reports from the Server on database tables will include the id to facilitate updates.
+The Configuration of the App will be versioned. 
+The Gui_async_client will set version so that tables are in sync with the current configuration.
+The server will set the version attribute when Gui_async_client sends it to the server.
+
+Summary:
+1. Code must run in python3 to allow for larger frameworks in virtual environments eg: sqlite3.
+2. Server must be able to translate cmds and process reports sent via json and asyncio
+4. Future work could allow Gui_async_client to specify changes in the number of samples, sample_rate, etc, which are frozen for now.
+5. Future work could require the Server to adapt to fulfill the needed changes.
+5. Process latency estimated to be very small.
+6. Msg sizes should be less than 1kb.
+
+
+
+Delegated to the svr/svr_task.manager.py which defines dict, handlers_dict as shown below (may not be current with codebase)
+Requestor must embed the required argslist, [...],  in the msg along with the code.
+Following functions can be activated from svr_task_manager.call_function(code:int, arglist: list)
+        handlers_dict    = dict()
+        handlers_dict[2] = self.request_time_sync                                # ( [] )
+        handlers_dict[4] = self.dbi.get_max_meas_id                              # ( [] )
+        handlers_dict[10]= self.dbi.get_app_config                               # ( )
+        handlers_dict[12]= self.dbi.update_app_config                            # ( [cfg_id, msg:Config] )
+        handlers_dict[20]= self.dbi.get_chan_config                              # ( [chan] )
+        handlers_dict[22]= self.dbi.update_chan_config                           # ( [chan] )
+        handlers_dict[30]= self.forward_to_ADC                                   # ( [msg, clients] )
+        handlers_dict[31]= self.process_adc_measurement_report                   # ( [measurement_report] )
+        handlers_dict[32]= self.start_periodic_voltage_measurements              # ( [period, reps] )
+        handlers_dict[40]= self.forward_to_ADC                                   # ( [msg, clients] )
+        handlers_dict[41]= self.process_adc_measurement_report                   # ( [measurement_report ] )
+        handlers_dict[42]= self.start_periodic_calibrations                      # ( [ period, reps, [vin0,vin1,vin2] ] )
+        handlers_dict[50]= self.dbi.save_to_bms                                  # ([ bms: BMS ])$
+        handlers_dict[52]= self.dbi.list_bms                                     # ([ chan, type])
+        handlers_dict[54]= self.dbi.get_bms_a2d_samples                          # ([ bms_id])
+        handlers_dict[60]= self.dbi.get_ah_total                                 # ( [ ] )
+        handlers_dict[62]= self.dbi.save_amp_hrs                                 # ( [ ] )
+        handlers_dict[62]= self.dbi.get_last_amp_hrs                             # ( [ ] )
+        handlers_dict[66]= self.dbi.delete_test_amp_hrs                          # ( [ ] )
+        handlers_dict[70]= self.dbi.get_lut                                      # ( [chan] )
+        handlers_dict[72]= self.dbi.get_lut_item                                 # ( [chan, vin] )
+        handlers_dict[74]= self.dbi.update_lut_pair                              # ([  _id,  vm,  vin] ) 
+        handlers_dict[76]= self.dbi.get_lut_timestamp                            # ([ chan ]) 
+        handlers_dict[78]= self.dbi.update_lut_timestamp                         # ([  _id,  vm,  vin] )
+        handlers_dict[80]= self.dbi.get_estimator_parms                          # ([])
+        handlers_dict[82]= self.dbi.update_estimator_parms                       # ([])
+        handlers_dict[90]= self.dbi.save_GPS_output                              # ([?])
+        handlers_dict[90]= self.dbi.get_GPS_Output                               # ([?])
+        self.handlers_dict=handlers_dict$
+
