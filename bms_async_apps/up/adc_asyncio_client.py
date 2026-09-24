@@ -1,30 +1,63 @@
-# file: adc_asyncio_client.py
-@bare bones. this will be upgraged to a class which will instantiate adc.py and ah_neter.py
+# file: up/adc_asyncio_client.py 
 
-from collections import namedtuple
-import asyncio
+from common.bms_config import SVR_IP, SVR_PORT 
+import asyncio 
 import json
 
-ADC= namedtuple("ADC", ("to", "frm","timestamp", "msgid", "code", "type","chan","vin","samp_sz", "samples"))
-msg = 'DB, ADC, 2026-5-20  17:40:27, 5010, 201 , c , 2,  12.236 , 64, [21709, 21709, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24489, 24490, 24490, 24489, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24490, 24489, 24490, 24490, 24490] '
+print(f"From bms_config, SVR_IP: {SVR_IP}, SVR_PORT: {SVR_PORT}")
+
+msg = {
+    "SENDER": "ADC",
+    "RECEIVER": "SVR",
+    "CODE": 0,
+}
+
 
 async def tcp_client():
+    """Connect to the server and send the initial registration message."""
 
-    reader, writer = await asyncio.open_connection(
-        '192.168.254.19',
-        8888
-    )
+    print("Opening connection to server...")
 
-    #    writer.write(b'Hello Server')
+    reader, writer = await asyncio.open_connection(SVR_IP, SVR_PORT)
+
     packet = json.dumps(msg) + "\n"
+
+    print("Sending:", repr(packet))
     writer.write(packet.encode())
     await writer.drain()
+    print("Message sent; waiting for ACK...")
 
     data = await reader.readline()
-#TODO 1: Find out why I cannot receive the msg sent from server until I control-C out of the server...
-    print("Server Received, Processed, Stored, and Forwarded msg to me:", data)
 
+    print("reader.readline() returned")
+    print("Raw server response:", repr(data))
+
+    if data:
+        print("Decoded server response:", data.decode().rstrip())
+    else:
+        print("Server closed without returning data")
+
+    print("Closing client connection")
     writer.close()
     await writer.wait_closed()
+    print("Client connection closed")
 
-asyncio.run(tcp_client())
+
+"""
+        print("Registration message sent:", packet.rstrip())
+
+        # This waits until the server sends a newline-terminated response.
+        data = await reader.readline()
+
+        if not data:
+            print("Server closed the connection without sending a response.")
+        return
+
+        #print("Message received from server:", data.decode().rstrip())
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+"""
+if __name__ == "__main__":
+    asyncio.run(tcp_client())
