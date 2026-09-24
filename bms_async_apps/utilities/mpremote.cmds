@@ -1,0 +1,29 @@
+refs: 
+https://docs.micropython.org/en/latest/reference/mpremote.html#mpremote-command-fs
+https://docs.micropython.org/en/latest/reference/packages.html#packages
+
+mpremote repl                 # Connect to REPL
+
+mpremote ls                   # List files on device
+
+mpremote cp adc.py :adc.py    # Copy one file from host dir to device main dir
+
+mpremote cp -r common :common # Copy a directory from local host to device
+
+mpremote cp -r :common common # Copy a directory from device to local  Note the ":" means device 
+
+mpremote run test_adc.py      # Run a python script
+
+mpremote soft-reset           # Soft reset
+
+mpremote fs cp main.py :main.py # copies main.py from the current local directory to the remote filesystem
+
+mpremote rm -r -v  :libs      # will remove the libs directory and all its child items from the device. -v show files being removed.
+ 
+mpremote fs cat X.py          # shows the contents of X.py
+
+mpremote mip install gitlab:org/repo@branch    #installs module/package from github 
+
+mpremote mip install --target /flash/third-party functools   # Install the functools package from micropython-lib to the /flash/third-party directory on the device. See Package management.
+
+print(open("boot.py").read())       # to see file contents while in mpremote repl
