@@ -4,7 +4,7 @@ import os
 
 print("bms_config os.getcwd() is : ", os.getcwd())
 
-SVR_IP ='192.168.88.3' 
+SVR_IP ='192.168.88.4' 
 SVR_PORT =8888
 
 APP_ID = 1
