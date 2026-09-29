@@ -1,0 +1,32 @@
+Timeline for AdcClient processing:
+Assuming volts_period = 3600 sec, amps_period = 60 sec, 
+
+Seconds: 0........60.......120......3600... repeats.
+         |1.
+         |2.      |2.        |2.  ...   |3.
+
+Legend:
+1- amps_adc saves start_timestamp for start of measurement period, 
+2.-amps_adc (every 60 seconds), Measures amps, increment counter,computes (convert mean a2d to volts), i=Vs/Rs, accumulate amps...
+3.- End of Measurement period. 
+    - AdcClient generates next meas_id = meas_id +1, code=code+1, copy of incoming MSGID, and fills in preliminary required fields of report_msg.
+    - AdcClient sends report_msg to amps_adc and volts_adc so they can fill in their fields of the report.
+    - amps_adc saves end_timestamp, computes voltage period in seconds, the I_MEAN=amps_accum/count, and ah_used. 
+    - volts_adc adds a2d arrays for each channel and adds other required fields. 
+    - AdcClient sends completed json-worthy msg to SVR.
+4. - Repeat of above for as long as it is acting.
+
+sts = start_timestamp
+ets = end_timestamp
+amps_adc = Analog digital converter for measuring total current. Uses Rs = 50mΩ and differential opAmp with gain of 20. 
+volts_adc = Analog digital converter for measuring Voltages at Voltage Taps(OneCell, TwoCells, ThreeCells).
+report_msg = Factory-generated msg form used by AdcClient, when it is fully populated, to send report to Svr.
+The report msg follows, values will be set/changed by: AdcClient, AmpsAdc, VoltsAdc : 
+
+ADC_TO_SVR_TEMPLATE = { "SENDER":"ADC", "RECEIVER":"SVR", "APP_ID":1, "VERSION":3, "CODE": 101, "MSGID": 123, "MEAS_ID":1, "TYPE":"m", "CHANS":[ 
+   {"CHAN":0, "TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "A2D":[24500,24500]},      #A2D will have 64 values.. just dummy here... 
+   {"CHAN":1, "TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "A2D":[24500,24500]},      #likewise
+   {"CHAN":2, "TIMESTAMP": 178000.0, "VIN":0 , "SAMP_SZ": 64, "A2D":[24500,24500]},      #likewise
+   {"CHAN":3, "TIMESTAMP": 178000.0, "I_MEAN":0.550,"PERIOD_SEC":3600, "AH_USED":0.550 } # values will vary but no arrays...
+ ] }
+
