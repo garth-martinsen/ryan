@@ -1,22 +1,20 @@
-# file: database_interface.py. path: .../DEV/.../data
-"""This class will retrieve and store in formation for the DataController which supplies info to the GUIs.
-Transactions are used when writing to the db. Each fetch method will include the tuple_factory to be
-used to convert the row values to a namedtuple: one of: [_Abbrev_namedtuple_factory, _Config_namedtuple_factory, _BMS_namedtuple_factory,_LUT_namedtuple_factory
-Later it was determined to send raw tuples across the websocket and to apply the namedtuples in the client requesting the data
+#file: database_interface.py. path: .../DEV/.../data
+
+"""This class will retrieve and store information for the SvrTaskManager which supplies info to the GUIs.
+Transactions are used when writing to the db. 
+It was determined to send raw tuples across the tCP comms and to apply the namedtuples in the client requesting the data
 """
 import sqlite3
+from svr.database_interface_config import  APP_CONFIG, CHAN_CONFIG, BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, AMP_HRS_FIELDS, AMP_HRS, Stats, funct_desc
 from common import secrets
 from common.bms_config import APP_ID, VERSION
+from collections import OrderedDict, namedtuple
 import time
 import datetime
 import json
-from svr.database_interface_config import  APP_CONFIG,CHAN_CONFIG,  BMS, LUT,APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, BMS_FIELDS, AMP_HRS_FIELDS, Stats, funct_desc
-
-from collections import OrderedDict, namedtuple
 import re
 import math
 from typing import List
-#import asyncio
 
 print(f" from secrets: db_path: {secrets.db_path}")
 
@@ -46,42 +44,14 @@ class DatabaseInterface:
         self.slope=[1.33289430358907,2.98747763864043,3.99304865938431 ]
         self.intercepts= [0.024164327787965,0.0498818752307106,0.0641294273419395 ]
         self.msg = ""
-        self.funct_dict = self.create_function_dict()
         self.funct_desc = funct_desc
-
-    #TODO 4: create command for gui to set adc_measurement parms...The 310 should get all app_config attrs including measurement ones. 300 should save
-    def create_function_dict(self):
-            funct_dict  = dict()
-            funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
-            funct_dict[302]= self.sync_time                                       # ( [] )
-            funct_dict[304]= self.get_max_meas_id                                 # ( [] )
-            funct_dict[310]= self.get_app_config                                  # ( )
-            funct_dict[312]= self.get_chan_config                                 # ( [chan] )
-            funct_dict[320]= self.save_to_bms                                     # ([ bms: BMS ])
-            funct_dict[330]= self.list_bms                                        # ([ chan, type])
-            funct_dict[334]= self.get_ah_total                                    # ([])
-            funct_dict[336]= self.save_amp_hrs                                    # ([])
-            funct_dict[338]= self.get_last_amp_hrs                                # ([])
-            funct_dict[342]= self.delete_test_amp_hrs                             # ([])
-            funct_dict[340]= self.get_bms_a2d_samples                             # ([ bms_id])
-            funct_dict[350]= self.get_lut                                         # ( [chan] )
-            funct_dict[352]= self.get_lut_item                                    # ( [chan, vin] )
-            funct_dict[360]= self.get_lut_timestamp                               # ([ chan ])
-            funct_dict[370]= self.update_lut_pair                                 # ([  _id,  vm,  vin] )    
-            funct_dict[380]= self.update_lut_timestamp                            # ([  _id,  vm,  vin] )
-            funct_dict[390]= self.get_estimator_parms                             #([])
-            return funct_dict
-            
-    def call_function( self, code, argslist):
-        print(f" code: {code}   function: {self.funct_dict[code].__name__} argslist: {argslist}")
-        return self.funct_dict[code]( *argslist )
 
     def get_max_meas_id(self ):
         '''Selects the max(meas_id) from bms table and return it to adc to set its meas_id on startup. '''
         cu = self.get_cursor()
-        select_str = "select max(meas_id) from bms "
+        select_str = f"select max(meas_id) from bms where app_id={self.app_id} and version={self.version}; "
         res = cu.execute(select_str)
-        return res.fetchone()
+        return res.fetchone()[0]
     
     def get_column_headers(self, table_name):
         headers=[]
@@ -139,12 +109,13 @@ class DatabaseInterface:
         '''Filters out fields not in BMS schema,
          Returns two synchronized lists with column names (cols) and values (vals) to facilitate inserts into db.
          BMS_FIELDS in database_interface_config.py must be kept current!!!'''
+        print(f"type and content of msg: {type(msg)} msg: {msg}")
         cols=[]
         vals=[]
-        if "ID" in msg:
-            msg.pop("ID")
         rejects=[]
         for k,v in msg.items():
+            if k == "ID":
+                continue
             if k in table_fields:
                 cols.append(k)
                 vals.append(v)
@@ -174,9 +145,9 @@ class DatabaseInterface:
         return msgid
  
     def get_app_config(self):
-        '''For each app, there will be exactly one app_config record'''
+        '''For each (app,version), there will be exactly one app_config record'''
         cu =self.get_cursor()
-        select_str = f"SELECT * FROM Apps where  version = {self.version};"
+        select_str = f"SELECT * FROM Apps where ID = {self.app_id} and version = {self.version};"
         #print("select_str: ", select_str)
         # Each row is a channel.
         res = cu.execute(select_str)
@@ -192,15 +163,21 @@ class DatabaseInterface:
         return res.fetchone()
 
      #TODO 7: fix get_estimator_parms so that it does not return an odict but the tuple, fix svr_task_mgr, gui also...
-    def get_estimator_parms(self ):
+    def get_estimator_parms(self, chan ):
         est_parms=[]
-        select_str = f" select chan, slope, intercept from CHANNELS where app_id= {self.app_id} and version = {self.version}"
+        select_str = f" select chan, slope, intercept from CHANNELS where app_id= {self.app_id} and version = {self.version} and chan={chan}"
         #print(" select string: ",  select_str)
         cu = self.get_cursor()
         for row in cu.execute(select_str):
             #print("row: ", row)
             est_parms.append(row)
         return est_parms
+
+    def update_estimator_parms(self, chan, slope, intercept):
+        '''Persists new slope and intercept to CHANNELS table.'''
+        cu = self.get_cursor()
+        update_str = f"update CHANNELS set SLOPE= {slope} and INTERCEPT = {intercept} where CHAN = {chan} "
+        cu.execute(update_str)
 
 
     #TODO 3 : Implement save_config(...) This should  indicate a new version! 
@@ -210,30 +187,38 @@ class DatabaseInterface:
 
     def save_to_bms(self , msg):
         ''' Saves summary fields for both types ['m','c'] to the same database table, bms.Summary fields are :
- (ID | MSGID | VERSION | TIMESTAMP | TYPE | CHAN | A2D_MEAN | VM_MEAN |  VM_SD  |  VB  | VIN  |  ERROR  | SAMP_SZ | DISCARD_SZ | KEEP_SZ ).
- Also Saves the A2D samples embedded in msg to the A2D table with the bms_id to link the two tables.A2D Fields are: ( ID | BMS_ID | A2D). where samples is a string
-holding list(64 int sample values). This can be expanded in length to have 128 samples etc.
-arg msg is a dict loaded by ADC  with raw data and augmented by Server with  computations.
- json is used to convert from string dict. Returns bms_id '''
+        Also Saves the A2D samples embedded in msg to the A2D table with the bms_id to link the two tables.
+        A2D Fields are: ( ID | BMS_ID | A2D). where samples is a string
+        holding list(64 int sample values).In the Future this could be expanded in length to have 128 samples etc.
+        arg msg is a dict loaded with raw data by ADC and augmented by Server computations.
+        json.loads() is used to convert from string dict. Returns bms_id '''
+        
+        cu = self.get_cursor()
         print(f"...Entered function: save_to_bms(msg) msg_type: {type(msg)} msg: {msg} ")
         atype = msg["TYPE"]
-        a2d = msg["A2D"]
-        timestamp = msg['TIMESTAMP']  # this is from the ADC timestamp.
+        timestamp = msg["TIMESTAMP"]  # this is from the ADC timestamp.
         chan = msg["CHAN"]
         vin = msg["VIN"]
-        # filters out msg fields not in BMS. Also remove "ID" so that db puts in next ID.
-        cols, vals = self._create_cols_vals(msg, BMS_FIELDS)      
-         
-        print(f"called dbi. save_measurement() with cols: {cols[1:]} values: {vals[1:]} ")
-        bms_insert_str = f"insert into BMS {tuple(cols)} values {tuple(vals)}; "   
-        cu = self.get_cursor()
-        cu.execute(bms_insert_str)
+        a2d = msg["A2D"]
+        msg["APP_ID"]=self.app_id 
+        # filter out msg fields not in BMS. Also remove "ID" so that db puts in next ID.
+        print("BMS_FIELDS type:", type(BMS_FIELDS))
+        print("BMS_FIELDS content:", repr(BMS_FIELDS))
+        print("msg keys:", list(msg.keys()))
+        cols, vals = self._create_cols_vals(msg, BMS_FIELDS)
+        if not cols:
+            raise ValueError( f"No message keys matched BMS_FIELDS: {BMS_FIELDS!r}")
+        print(f"called dbi.save_to_bms() with cols: {cols[1:]} values: {vals[1:]} ")
+        column_names = ", ".join(cols)
+        placeholders = ", ".join("?" for _ in vals)
+        print(f"\tcolumn_names: {column_names}, placeholders: {placeholders}")
+        sql = f"INSERT INTO BMS ({column_names}) VALUES ({placeholders})"
+        cu.execute(sql, vals)
         bms_id=cu.lastrowid
         #print(f"bms_id: {bms_id}")
         a2d_insert_str = f"insert into A2D values(NULL, {bms_id}, '{a2d}')"
         #print(f"a2d_insert_str: {a2d_insert_str}")
         cu.execute(a2d_insert_str)
-        self.cx.commit()
         return bms_id
 
     def get_ah_total(self):
@@ -244,15 +229,14 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         select_str = "select ah_total from AMP_HRS WHERE APP_ID = app_id and VERSION = version ORDER BY ID DESC LIMIT 1; "
         cu = self.get_cursor()
         res = cu.execute(select_str)
-        return res.fetchone()
+        return res.fetchone()[0]
  
     def save_amp_hrs(self, dict):
-        '''Gets the latest ah_total from amp_hrs table, then adds ah_used and saves updated tuple to amp_hrs table.'''
-        prev_ah_total = self.get_ah_total()[0]
+        '''Gets the latest ah_total from amp_hrs table, then adds ah_used and saves updated tuple to amp_hrs table.
+        #AMP_HRS_FIELDS: ID │ APP_ID │ VERSION │ MEAS_ID │    TIMESTAMP     │ I_MEAN │ PERIOD_SEC │ AH_USED │ AH_TOTAL │'''
+        prev_ah_total = self.get_ah_total()
         AH_USED = float(dict["AH_USED"])
         dict["AH_TOTAL"] = prev_ah_total + AH_USED
-        app_id=self.app_id
-        version = self.version
         dict["APP_ID"] = self.app_id
         dict["VERSION"] = self.version
         cols, vals = self._create_cols_vals(dict, AMP_HRS_FIELDS)
@@ -261,7 +245,16 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu = self.get_cursor()
         cu.execute(ins_str)
 
+    def get_amp_hrs_by_meas_id(self, meas_id):
+        '''Returns the amp_hrs record with meas_id'''
+        version= self.version
+        app_id=self.app_id
+        select_str = f"select * from AMP_HRS where APP_ID = app_id and VERSION = version and meas_id={meas_id};"
+        cu=self.get_cursor()
+        res= cu.execute(select_str)
+        return AMP_HRS(*res.fetchone())
 
+        '''Selects the last record saved in AMP_HRS table.'''
     def get_last_amp_hrs(self):
         '''Selects the last record saved in AMP_HRS table.'''
         version= self.version
@@ -272,21 +265,19 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         res = cu.execute(select_str)
         return AMP_HRS_ROW(*res.fetchone())
 
-    def delete_test_amp_hrs(self):
-        '''This deletes any records from AMP_HRS that has MEAC_ID= 99999.'''
-        delete_str = "delete from AMP_HRS where MEAS_ID = 99999;"
+    def delete_test_records(self):
+        """Delete test records with MEAS_ID > 9990."""
         cu = self.get_cursor()
-        cu.execute(delete_str)
-
+        cu.execute(""" DELETE FROM A2D WHERE BMS_ID IN ( SELECT ID FROM BMS WHERE MEAS_ID > 9990) """)
+        cu.execute("DELETE FROM BMS WHERE MEAS_ID > 9990")
+        cu.execute("DELETE FROM AMP_HRS WHERE MEAS_ID > 9990")
+        cu.connection.commit()
 
     def list_bms(self, chan, atype):
         ''' Returns a list<records> of type atype.'''
         records = []
-        select_str = f" select * from BMS where chan={chan} and type = '{atype}' ;  "
+        select_str = f" select * from BMS where APP_ID={self.app_id} and VERSION = {self.version} and chan={chan} and type = '{atype}' ;  "
         #print(f"select _str: {select_str}")
-
-        
-       # self.cx.row_factory = self._BMS_namedtuple_factory
         cu = self.get_cursor()
         for row in cu.execute(select_str):
             records.append(row)
@@ -299,11 +290,8 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu = self.get_cursor()
         select_str = f"select samples from A2D where bms_id = {bms_id};"
         #print("select_str: ", select_str)
-        for row in cu.execute(select_str):
-            records.append(row)
-        lst=list(records[0])
-        a2d=json.loads(lst[0])
-        return a2d
+        res = cu.execute(select_str)
+        return res.fetchone()
  
     def get_lut_pair(self, chan, vm):  
         cu = self.get_cursor()
@@ -318,14 +306,10 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         cu = self.cx.cursor()
         return cu
     
-    #TODO 6: Get get_schema working so that dbi can query for the schema of <table> in order to check correctness of namedtuples
     def get_schema(self, table_name):
         '''Returns the schema of 'table_name' '''
         select_str = f".schema {table_name} "
         print(f"sqlite3 {self.db_path} .schema {table_name}")
-        
-        
-      
         
     def get_lut_item(self, chan, vin):
         '''Returns the whole LUT record including ID, given chan and vin.'''
@@ -403,35 +387,6 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         self.luts[chan]=od
         return od
  
- 
-    def matchesboundary(self, chan:int, vm:float, version:int) :
-        '''Returns tuple(vm, lut). Vm is None if outside of allowed boundary limits, Returns vm if vm is within tol of first or last key. tol is 1/2* vinstep * vd_fract'''
-     
-        lut=self.luts[chan]
-        keys = list(lut.keys())
-        minkey = keys[0]
-        maxkey = keys[-1]
-        #print(f"\t bounds for chan {chan}: {minkey}, {maxkey}")
-        vinstep = 0.1            # all luts have vin in 0.1V steps.
-        tol = vinstep/2*self.slope[chan]    # Design Rule: Tol = the vm for 1/2 vin step  
-        #allowable vm values to set vm = minkey or maxkey depending...
-        lo_tol = minkey - tol
-        hi_tol = maxkey + tol
-        if vm < lo_tol or vm > hi_tol:
-            print( f"Error: {minkey} <= vm:{vm} <= {maxkey} violated. Returning None for vm")
-            return (None, lut)
-        else:
-            # if vm is equal to minkey or maxkey, set vm to minkey or maxkey depending
-            vmr=None
-            if  lo_tol < vm < keys[1]:
-                vmr = minkey
-            elif keys[-2] < vm < hi_tol:
-                vmr = maxkey
-            else:
-                #passed in vm is inside of lut boundaries so it can be interpolated.
-                vmr = vm
-        return (vmr, lut)
-
     def check_bms_id_in_a2d(self):
         '''Returns the id of the last bms record and the bms_id of the last A2D record. Good to ensure sync.'''
         a2d_select_str='select max(id),bms_id  from A2D'
@@ -447,5 +402,24 @@ arg msg is a dict loaded by ADC  with raw data and augmented by Server with  com
         return (_id, bms_id) 
         
         
-
-        
+    def save_GPS(self, timestamp, latitude, longitude, altitude_m, hdop):
+        '''Saves GPS record to GPS table.'''
+        cu = self.get_cursor()
+        insrt_str = f"INSERT INTO GPS values (NULL, {timestamp},{latitude}, {longitute}, {altitude_m}, {hdop});"
+        cu.execute(insrt_str)
+         
+    def get_GPS(self, timestamp1, timestamp2):
+        '''Returns all GPS Records between two timestamps'''
+        records = []
+        cu = self.get_cursor()
+        select_str = f"SELECT * FROM GPS WHERE TIMESTAMP BETWEEN timestamp1 and timestamp2; "
+        for row in cu.execute(select_str):
+            records.append(row)
+        return records
+ 
+    def get_measurement_report_for_chan(self, meas_id, ch):
+        '''Retrieve the bms record for channel ch.'''
+        select_str = f"select * from bms where APP_ID= {self.app_id} and VERSION= {self.version} and meas_id = {meas_id} and chan = {ch}"
+        cu = self.get_cursor()
+        res=cu.execute(select_str)
+        return res.fetchone() 
