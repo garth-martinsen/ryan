@@ -10,6 +10,8 @@ from up.ads1x15 import ADS1115
 from machine import SoftI2C, RTC, Pin
 from up.adc_cfg import ADC_SAMPLE_RATE, _BUFFERSIZE, NAMES, Pin, Measurements, measurements
 
+UNIX_EPOCH_OFFSET = 946684800
+
 scl=Pin(5)
 sda=Pin(4)
 i2c = SoftI2C(scl, sda)
@@ -124,8 +126,7 @@ class Adc:
         # loops until a2d and uclicks arrays are filled
         while self.index_put < _BUFFERSIZE:
             pass
-        #TODO 2: Make sure this is the correct timestamp for the bms table.
-        self.timestamps[ch]= time.time()
+        self.timestamps[ch]= time.time() + UNIX_EPOCH_OFFSET 
         #print(f"Done...A2D samples will be found in self.measurements[{ch}].a2d")
         # measurements are stored in measurements arrays They will be loaded from there into the server_report...
 
