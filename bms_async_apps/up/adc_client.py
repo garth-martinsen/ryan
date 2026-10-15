@@ -9,10 +9,10 @@ from machine import RTC
 import asyncio
 import json
 import time
+ 
+UNIX_EPOCH_OFFSET = 946684800
 
 print(f"From bms_config, SVR_IP: {SVR_IP}, SVR_PORT: {SVR_PORT}")
-# TODO 3: Create a self.dict to hold all holdover values key=msgid value= [] list will hold: code, msgid, vins, type, 
-# TODO 3: self will store the holdovers when msg arrives and pull them out for the report_to_svr.'''
 class AdcClient:
     def __init__(self):
         '''Creates empty AdcClient which will get config from db table, create volt_adc and amps_adc, load the handlers_dict with functions to call when msgs arrive.'''
@@ -87,7 +87,7 @@ class AdcClient:
         ''' Fields held in self.holdovers_dict will be injected into the report_to_svr msg.Add fields as needed...'''
         self.holdover_dict =OrderedDict({"MSGID":msg["MSGID"], "CODE": msg["CODE"],"TYPE": msg["TYPE"], "VINS": msg["VINS"]})
 
-    # TODO 1: Need to register with server, sync_time, get_meas_id_seed, get_app_config, . Right now hanging in self.send(). Ask Chat.
+    # TODO 1: DONE. Need to register with server, sync_time, get_meas_id_seed, get_app_config. 
     async def start(self):
        self.commissioned = asyncio.Event()
        self.is_registered = False
@@ -140,11 +140,10 @@ class AdcClient:
         self.is_registered = True
         self.is_commissioned()
         
-    #TODO 2: Make sure that setting rtc.datetime on one adc will update the other adc. If not need to set both adcs.
-
     def handle_time_sync(self, svr_tup):
         ''' Since the rtc.datetime() function is set on the base class, both volts_adc and amps_adc wil have correct time.'''
         print("In handle_time_sync received svr_tup: ", svr_tup)
+        #TODO: ensure that all time.time() calls adds UNIX_EPOCH_OFFSET = 946684800 to compensate for different epochs in µp and py.
         #svr_tup = msg["SVR_TUP"]
         # must insert day_of_wk (svr_tup[6]) between date and time entries.
         esp_tup = (svr_tup[0], svr_tup[1],svr_tup[2],svr_tup[6],svr_tup[3],svr_tup[4],svr_tup[5],0)
@@ -173,7 +172,7 @@ class AdcClient:
         self.holdover_dict = OrderedDict({"VINS" : msg["VINS"], "MSGID": msg["MSGID"], "CODE":msg["CODE"], "TYPE": msg["TYPE"]})
         for chan in range(3):
             self.volts_adc.measure(chan)
-            self.volts_adc.timestamps[chan]= time.time()
+            self.volts_adc.timestamps[chan]= time.time() + UNIX_EPOCH_OFFSET #= 946684800
         return await self.report_to_svr()
 
     async def start_periodic_voltage_measurements(self, msg):
