@@ -64,7 +64,7 @@ class AmpsAdc(Adc):
     def report_to_svr(self, report):
         '''Assuming that I can pass in report_msg and populate the amps portion of it and then later pass it to adc.report_to_svr which also updates it.  '''
         #reporting time is end_time for the report. ie: Now()
-        self.end_time= time.time()
+        self.end_time= time.time() + UNIX_EPOCH_OFFSET
         amps_chan = 3
         amps_record  = report["CHANS"][amps_chan]
         print(f"In amps_adc.report_to_svr(), amps_record : {amps_record}")
