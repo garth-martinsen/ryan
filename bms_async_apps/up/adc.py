@@ -52,7 +52,7 @@ class Adc:
         self.alrt=Pin(17)
         self.rtc = RTC()
         self.msg={}
-        self.timestamps = [[],[],[]]
+        self.timestamps = [[],[],[],[]]
         self.vins = [0,0,0] # set in calibrate(...) else remains Zeros
         self.current_measurement_period = config.ADC_AMP_MEAS_PERIOD  #seconds default value is 60 seconds but can be set by a gui msg.
         self.volt_measurement_period = config.ADC_VOLT_MEAS_PERIOD   #seconds default == 1 hour.
@@ -126,9 +126,11 @@ class Adc:
         # loops until a2d and uclicks arrays are filled
         while self.index_put < _BUFFERSIZE:
             pass
-        self.timestamps[ch]= time.time() + UNIX_EPOCH_OFFSET 
+        self.timestamps[ch]= (time.time() + UNIX_EPOCH_OFFSET )
         #print(f"Done...A2D samples will be found in self.measurements[{ch}].a2d")
-        # measurements are stored in measurements arrays They will be loaded from there into the server_report...
+        # measurements chans[0,1,2] are stored in measurements arrays They will be loaded from there into the server_report...
+        # measurements[3] are also stored in measurement array but they will be processed and accumulated between amps measurements.
+        # at svr_report time, the average amps will included in the report along with ah_used and elapsed time of accumulation..
 
     def build_report_to_svr(self, server_report, msgid, vins, code):
         self.reporting =1
