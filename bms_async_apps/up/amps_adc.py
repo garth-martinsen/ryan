@@ -11,7 +11,7 @@ class AmpsAdc(Adc):
 
     def __init__(self, config):
         super().__init__(config)
-        self.pk_volts = config.PACK_VOLTS       # indicates nominal voltage at which amps_adc.ah_used is needed. 12.6V is used for 3Cells in series. Just for show.
+        self.pk_volts = config.PACK_VOLTS  # indicates nominal voltage at which amps_adc.ah_used is needed. 12.6V is used for 3Cells in series. Just for show.
         self.lsb = config.ADC_AMPS_FSR/config.ADC_STEPS   # for FSR=1.024v and steps =2**15 ; lsb = FSR/steps, 1.024/32768 = 0.00003125 or 31.25µV
         self.rs  = config.RS           # Measured shunt resistor value in ohms
         self.amp_gain = config.AMP_GAIN         # Gain from INA180A1 current sense amplifier eg: 20
@@ -28,15 +28,24 @@ class AmpsAdc(Adc):
         self.count = 0
 
     def accumulate(self):
-        '''Gets the a2d array from memory. Rejects outliers, compute mean, compute vs=self.lsb*mean, computes apparent amps, then scales it down by amp_gain  '''
-        #rejects outliers by histogram, excluding bins for a2d counts more than 2 counts away from winner.
+        '''Gets the a2d array from memory. Rejects outliers, Compute mean, compute vm=self.lsb*mean, computes apparent amps, then scales it down by amp_gain'''
+        #rejects outliers by histogram, excluding counts for a2d_counts more than 2 counts away from winner.
         # The winner is the a2d value whose bin holds the most counts. 
+        self.pdict.clear()
+        winner = 0
+        binsz=0
+        print(f"a2d: {self.a2d}")
         for cnt in self.a2d:
              abin = self.pdict.get(cnt,[])
              abin.append(cnt)
-             pdict[cnt]= abin
-        winner = max(pdict.values)
-        keep = [k for k,v in pdict.items() if abs(k-winner)< 2 ]     
+             self.pdict[cnt]= abin
+        print(f"self.pdict: {self.pdict}")
+        for k,v in self.pdict.items():
+            if len(v) > binsz:
+                binsz = len(v)
+                winner = k
+        print(f"winner: {winner} with count: {binsz}") 
+        keep = [x for x in self.a2d if abs(x-winner) < 2 ]     
         m = sum(keep)/len(keep)
         vs= self.lsb * m    #voltage across shunt resistor, rs
         # i=Vs/RS then scale to get true current
@@ -48,9 +57,10 @@ class AmpsAdc(Adc):
         # accumulate and ncrement count so later avg can be returned.
         self.amp_sum += amps
         self.count += 1
+        print(f"Count: {self.count}  AmpSum: {self.amp_sum} I_MEAN: {self.amp_sum/self.count}")
 
     def ah_used(self):
-        ''' The end_time is set in report_to_svr. ah_meter can answer everything needed in the report without any args passed in.'''
+        ''' The end_time is set in report_to_svr. amps_adc can answer everything needed in the report without any args passed in.'''
         delta_time_hr= (self.end_time - self.start_time)/3600   #in hours should be ~1.0
         avg_amps = self.amp_sum / self.count
         ah_used = delta_time_hr *  avg_amps
@@ -62,7 +72,7 @@ class AmpsAdc(Adc):
         self.count = 0
 
     def report_to_svr(self, report):
-        '''Assuming that I can pass in report_msg and populate the amps portion of it and then later pass it to adc.report_to_svr which also updates it.  '''
+        '''Assuming that I can pass in report_msg and populate the amps portion of it and then pass it back to adc.report_to_svr for updates there.  '''
         #reporting time is end_time for the report. ie: Now()
         self.end_time= time.time() + UNIX_EPOCH_OFFSET
         amps_chan = 3
