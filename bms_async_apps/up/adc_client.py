@@ -21,17 +21,14 @@ class AdcClient:
         self.config = None
         self.msgid  = None
         self.meas_id = None
-        self.amps_measurement_period = None
         self.amps_meas_reps = None
         self.volts_meas_reps = None
         self.amps_meas_done = None
         self.volts_meas_done = None
-        self.volts_measurement_period = None
         self.handlers_dict = OrderedDict()
+        self.holdover_dict = OrderedDict()
         self.volts_adc = None
         self.amps_adc = None
-        self.registered_with_server = False
-        self.holdover_dict = OrderedDict()
         
         print("Created Empty AdcClient. It will be populated in start() function")
 
@@ -161,6 +158,9 @@ class AdcClient:
        #Extract config info from msg. 
        print(f"in handle_app_config, config: {config}")
        self.config = Config(*config)
+       print(f"self.config: {self.config}")
+       self.amps_measurement_period =self.config.ADC_AMP_MEAS_PERIOD
+       #self.volts_measurement_period =self.config.ADC_VOLT_MEAS_PERIOD
        #Create the two adc instances...
        self.volts_adc = VoltsAdc(self.config)
        self.amps_adc =  AmpsAdc( self.config )
@@ -175,9 +175,20 @@ class AdcClient:
             self.volts_adc.timestamps[chan]= time.time() + UNIX_EPOCH_OFFSET #= 946684800
         return await self.report_to_svr()
 
+    async def start_endless_periodic_amps_measurements(self, period ):
+        """ Returns nothing.This is an asynchronous task. Channel 3 measured in about 1 second,before waiting for processing.
+        Future work will add a method to interpret a GUI command like the periodic voltage below. .."""
+        self.amps_adc.reset()
+        self.amps_adc.start(time.time() + UNIX_EPOCH_OFFSET )  
+        # Endless accumulation of amps measurements. Resets when Server_Report is generated ~ every 3600 secs. 
+        while True:
+            self.amps_adc.measure(3)  
+            self.amps_adc.accumulate()
+            await asyncio.sleep(period)
+
     async def start_periodic_voltage_measurements(self, msg):
-        ''' Returns nothing.This is an asynchronous task. Each channel is measured before waiting...
-            Arg msg is a dict. Measurements will repeat until reps are completed or it is stopped by User thru GUI.'''
+        """ Returns nothing.This is an asynchronous task. Each of 3 channels is measured putting a2d arrays in memory. \
+            Arg msg is a dict. Measurements will repeat until reps are completed or it is stopped by User thru GUI."""
         period = msg["PERIOD"]
         reps = msg["REPS"]
         msgid= msg["MSGID"]
@@ -197,15 +208,15 @@ class AdcClient:
         print(f"All of volts_meas_reps: {self.volts_meas_reps} are done.")
         
     async def calibrate_volts(self, msg):
-        '''Returns nothing.It will cause a voltage_measurement_report to the svr eventually...'''
+        """Returns nothing.It will cause a voltage_measurement_report to the svr eventually..."""
         pass
                 
     async def start_periodic_calibrations(self, msg):
-        '''Returns nothing.It will cause many voltage_measurement_reports to the svr eventually...'''
+        """Returns nothing.It will cause many voltage_measurement_reports to the svr eventually..."""
         pass
 
     async def report_to_svr(self):
-        '''get the form, populate my part, get volts_adc's part, get amps_adc's part . When complete send it.'''
+        """get the form, populate my part, get volts_adc's part, get amps_adc's part . When complete send it."""
         print(f"in adc_client.report_to_svr(), holdover_dict: {self.holdover_dict}")
         vins = self.holdover_dict["VINS"]
         report = self.voltage_report_form()
