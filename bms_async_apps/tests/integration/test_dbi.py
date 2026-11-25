@@ -1,9 +1,8 @@
 # file test_dbi.py  Given a msg, save the bms in the msg to BMS table in database rt_db.   Run in Python3
-
+from svr.svr_task_manager import SvrTaskManager as STM
 from svr.database_interface import DatabaseInterface, LUT_ITEM
 from svr.database_interface_config import APP_CONFIG, CHAN_CONFIG, LUT, BMS, BMS_FIELDS, APP_CONFIG_FIELDS, CHAN_CONFIG_FIELDS, AMP_HRS_FIELDS
 from svr.dbi_records import  app_config,  chan_configs,  bms, samples, answers, lut_answers
-#from lut_convert import LutConvert as LC
 from collections import OrderedDict, namedtuple
 from copy import deepcopy
 import json
@@ -15,6 +14,7 @@ version=3
 print("Database initialization: =======================")        
 
 dbi = DatabaseInterface(app_id,version)
+stm = STM(app_id, version)
 print("End of Database initialization: =======================")        
 
 #6/6/26: BMS_FIELDS = ("ID", "MSGID", "VERSION", "TIMESTAMP", "TYPE", "CHAN", "A2D_MEAN", "VM_MEAN", "VM_SD", "VB", "VIN", "ERROR", "SAMP_SZ", "DISCARD_SZ", "KEEP_SZ", "SAMPLES")
@@ -213,27 +213,6 @@ class Test_DBI:
           
         print(f"Passed test_update_lut({chan}) ")
         
-    
-    """   stats is not a function on dbi. It belongs to svr_task_manger.
-    @pytest.mark.parametrize("chan", [0, 1, 2])
-    def test_stats(self, chan):
-        global samps
-        '''Tests the computation of mean, sd, interpolation,'''
-        print("===================")
-        print(f"testing stats({chan})")
-        eps = 1e-6
-        samps = json.loads(samples[chan])
-        print(f" type of samps[{chan}]: {type(samps[chan])}" )
-
-        stat = dbi.stats(chan, samps)
-        print(f" a2d_mean: {stat.a2d}  vm_mean: {stat.vm} vm_sd: {stat.vm_sd}  vb: {stat.vb}") 
-        assert stat.a2d - answers[chan].a2d < eps , f" A2d mean count is wrong: {stat.a2d}. Should be: {answers[chan].a2d}'"
-        assert stat.vm - answers[chan].vm < eps , f" vm  is wrong: {stat.vm}. Should be: {2.655}'"
-        assert stat.vm_sd - answers[chan].vm_sd < eps , f" vm_sd  is wrong: {stat.vm_sd}. Should be: {answers[chan].vm_sd }'"
-        assert stat.vb - answers[chan].vb <eps , f" vb is wrong: {stat.vb}. Should be: {answers[chan].vb}'"
-
-        print(f"Passed  test_stats[{chan}]")
-    """ 
     def test_a2d_bms_sync(self):
         '''ensure that the last A2d record  has bms_id = bms.id of last bms record '''
         print("======================")
@@ -272,42 +251,25 @@ class Test_DBI:
         print()
         print(f"Passed  test_lut_limits chan {chan}")
         
-    ''' ============possible codes and arglists to test below============        
-            funct_dict[300]= self.save_config                                     # ( [cfg_id, msg:Config] )
-            funct_dict[302]= self.sync_time                                       # ( [] )
-            funct_dict[304]= self.get_max_meas_id                                 # ( [] )
-            funct_dict[310]= self.get_app_config                                  # ( )
-            funct_dict[312]= self.get_chan_config                                 # ( [chan] )
-            funct_dict[320]= self.save_to_bms                                     # ([ bms: BMS ])
-            funct_dict[330]= self.list_bms                                        # ([ chan, type])
-            funct_dict[340]= self.get_bms_a2d_samples                             # ([ bms_id])
-            funct_dict[350]= self.get_lut                                         # ( [chan] )
-            funct_dict[352]= self.get_lut_item                                    # ( [chan, vin] )
-            funct_dict[360]= self.get_lut_timestamp                               # ([ chan ])
-            funct_dict[370]= self.update_lut_pair                                 # ([  _id,  vm,  vin] )
-            funct_dict[380]= self.update_lut_timestamp                            # ([  _id,  vm,  vin] )
-            funct_dict[390]= self.get_estimator_parms                             #([])
-
-    '''
     @pytest.mark.parametrize(
                 "code,arglist",
         [
-          pytest.param(302, [], id="302-sync_time"),
-          pytest.param(304, [], id="304-max-meas-id"),
-          pytest.param(310, [], id="310-get_app_config" ),
-          pytest.param(312, [0], id="312-get_chan_config" ),
-          pytest.param(330, [0, "m"], id="330-list-chan0-measure"),
-          pytest.param(330, [0, "c"], id="330-list-chan0-calibrate"),
-          pytest.param(340, [5], id="340-get_bms_a2d_samples"),
-          pytest.param(350, [0], id="350-get_lut"),
-          pytest.param(390, [], id="390-get_estimator_parms"),
+          #pytest.param(2, [], id="2-sync_time"),
+          pytest.param(4, [], id="4-max-meas-id"),
+          pytest.param(10, [], id="10-get_app_config" ),
+          pytest.param(20, [0], id="20-get_chan_config" ),
+          pytest.param(52, [0, "m"], id="52-list-chan0-measure"),
+          pytest.param(52, [0, "c"], id="52-list-chan0-calibrate"),
+          pytest.param(54, [5], id="54-get_bms_a2d_samples"),
+          pytest.param(70, [0], id="70-get_lut"),
+          pytest.param(80, [0], id="80-get_estimator_parms"),
         ],
     )
 
     def test_call_function(self, code, arglist):
             print("===================")
-            print(f"Testing call_function: code: {code} function: { dbi.funct_dict[code].__name__ }  arglist: {arglist}")
-            print(dbi.funct_dict[code] ( *arglist))
+            print(f"Testing call_function: code: {code} function: { stm.funct_dict[code].__name__ }  arglist: {arglist}")
+            print(stm.funct_dict[code] ( *arglist))
             print("Passed test call_function( code,arglist)") 
 
     def test_get_max_meas_id(self):
@@ -320,7 +282,7 @@ class Test_DBI:
     def test_save_amp_hrs(self, amp_hrs):
         '''Saves to db table AMP_HRS after computing new ah_total '''
         print("input dict: ", amp_hrs )
-        prev_ah_total = float(dbi.get_ah_total()[0])
+        prev_ah_total = float(dbi.get_ah_total())
         amp_hrs["AH_TOTAL"]= float(amp_hrs["AH_USED"]) + prev_ah_total
         print("updated amp_hrs: " , amp_hrs)
         dbi.save_amp_hrs( amp_hrs) 
@@ -336,4 +298,4 @@ class Test_DBI:
         assert fetched_saved.AH_TOTAL == amp_hrs["AH_USED"]+ prev_ah_total 
         print("PASSED: test_save_amp_hrs(...). Deleting test record from AMP_HRS table.")
         print("PASSED: test_save_amp_hrs(...)")
-        dbi.delete_test_amp_hrs()  # removes any records from AMP_HRS with MEAS_ID=9999
+        dbi.delete_test_records()  # removes any records from AMP_HRS with MEAS_ID=9999

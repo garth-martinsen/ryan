@@ -1,4 +1,7 @@
-from services.discharge_curve import discharge_curve, Interpolator
+import sys
+sys.path.append("/Users/garth/DEV/ryan/bms_async_apps")  # project dir
+
+from services.discharge_curve import discharge_curve, DischargeInterpolator as Interpolator
 import pytest
 
 interpolator = Interpolator()
