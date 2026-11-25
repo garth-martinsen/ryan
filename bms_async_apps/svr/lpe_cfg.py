@@ -1,4 +1,6 @@
 #file svr/lpe_cfg.py
+# The following values are generated using the voltage divider values.
+# They need to be replaced with real measurements of vm, Vin( ie: calibration measurements.)
 
 luts=[[],[],[]]
 luts[0] = [

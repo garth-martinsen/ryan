@@ -48,7 +48,7 @@ class LineParmEstimator:
         min_limit = self.points[chan][0][0]
         max_limit = self.points[chan][-1][0]
         if not min_limit <= vm <= max_limit:
-            err = f"vm {vm} is out of bounds: {min_limit}, {max_limit} "
+            err = f"ValueError: vm {vm} is not between bounds: {min_limit}, {max_limit} "
             raise ValueError(err)
         else:
             return vm * self.slopes[chan] + self.intercepts[chan]

@@ -25,11 +25,11 @@ def test_compute_line_parms():
     #for i in range(3):
         #print(f" chan : {i}  points: { len(lpe.points[i]) }  slope: {lpe.slopes[i]}  intrcpt: {lpe.intercepts[i]}")
     assert len(lpe.points[0])== 16, "There should be 16 points in chan 0."
-    assert len(lpe.points[1])== 31, "There should be 31 points in chan 0."
-    assert len(lpe.points[2])== 46, "There should be 16 points in chan 0."
-    assert lpe.slopes[0] == 1.332883803048778, " Slope is wrong: "
-    assert lpe.slopes[1] == 2.9874658669851355 , " Slope is wrong: "
-    assert lpe.slopes[2] == 3.993047659001258 , " Slope is wrong: "
+    assert len(lpe.points[1])== 31, "There should be 31 points in chan 1."
+    assert len(lpe.points[2])== 46, "There should be 46 points in chan 2."
+    assert lpe.slopes[0] == 1.332883803048778, " Chan 0 Slope is wrong: "
+    assert lpe.slopes[1] == 2.9874658669851355 , " Chan 1 Slope is wrong: "
+    assert lpe.slopes[2] == 3.993047659001258 , " Chan 2 Slope is wrong: "
     assert lpe.intercepts[0] == 3.138640749167365e-05, " Intercept is wrong: "
     assert lpe.intercepts[1] == 2.4762853823381925e-05, " Intercept is wrong: "
     assert lpe.intercepts[2] == 4.886606634697629e-06, " Intercept is wrong: "
